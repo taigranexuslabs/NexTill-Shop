@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import {
@@ -37,16 +37,8 @@ export default function SettingsScreen() {
   const [interval, setInterval] = useState(backupInterval);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [panVatNumber, setPanVatNumber] = useState("");
-  const [savingPanVatNumber, setSavingPanVatNumber] = useState(false);
-  const [taxNumberMessage, setTaxNumberMessage] = useState("");
-  const [taxNumberError, setTaxNumberError] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState("success");
-
-  useEffect(() => {
-    setPanVatNumber(shop?.pan_vat_number || "");
-  }, [shop?.id, shop?.pan_vat_number]);
 
   function showMessage(text, tone = "success") {
     setMessage(text);
@@ -81,21 +73,6 @@ export default function SettingsScreen() {
       showMessage(error.message || "Could not save the backup schedule.", "error");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function saveTaxNumber() {
-    setSavingPanVatNumber(true);
-    setTaxNumberMessage("");
-    try {
-      await updateShopPanVatNumber(panVatNumber);
-      setTaxNumberMessage("PAN/VAT number saved on this device.");
-      setTaxNumberError(false);
-    } catch (error) {
-      setTaxNumberMessage(error.message || "Could not save the PAN/VAT number.");
-      setTaxNumberError(true);
-    } finally {
-      setSavingPanVatNumber(false);
     }
   }
 
@@ -194,32 +171,7 @@ export default function SettingsScreen() {
         <View style={styles.localPill}><Check size={12} color={colors.green} /><Text style={styles.localPillText}>On device</Text></View>
       </Surface>
 
-      <SectionHeading icon={Store} title="INVOICE TAX IDENTIFICATION" />
-      <Surface style={styles.sectionCard}>
-        <Text style={styles.body}>Add your registered 9-digit PAN/VAT number to print it on bills. Leave blank if you do not have one.</Text>
-        <Text style={[styles.fieldLabel, styles.taxNumberLabel]}>PAN / VAT REGISTRATION NUMBER</Text>
-        <TextInput
-          value={panVatNumber}
-          onChangeText={(value) => {
-            setPanVatNumber(value.replace(/\D/g, "").slice(0, 9));
-            setTaxNumberMessage("");
-          }}
-          placeholder="9-digit number"
-          keyboardType="number-pad"
-          maxLength={9}
-          style={styles.input}
-          accessibilityLabel="PAN or VAT registration number"
-        />
-        {taxNumberMessage ? <Text style={[styles.feedback, taxNumberError ? styles.feedbackError : styles.feedbackSuccess]}>{taxNumberMessage}</Text> : null}
-        <Pressable
-          style={[styles.saveScheduleButton, savingPanVatNumber && styles.buttonDisabled]}
-          onPress={saveTaxNumber}
-          disabled={savingPanVatNumber}
-          accessibilityRole="button"
-        >
-          <Text style={styles.saveScheduleText}>{savingPanVatNumber ? "Saving…" : "Save PAN/VAT number"}</Text>
-        </Pressable>
-      </Surface>
+      <ShopTaxNumberSettings key={shop.id} shop={shop} onSave={updateShopPanVatNumber} />
 
       <SectionHeading icon={CloudUpload} title="SAVE A COPY OF YOUR DATA" />
       <Surface style={styles.sectionCard}>
@@ -436,6 +388,59 @@ function SectionHeading({ icon: Icon, title, attention = false }) {
       <Icon size={15} color={attention ? colors.amber : colors.red} strokeWidth={2} />
       <Text style={[styles.sectionTitle, attention && styles.sectionTitleAttention]}>{title}</Text>
     </View>
+  );
+}
+
+function ShopTaxNumberSettings({ shop, onSave }) {
+  const [panVatNumber, setPanVatNumber] = useState(shop.pan_vat_number || "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setMessage("");
+    try {
+      await onSave(panVatNumber);
+      setMessage("PAN/VAT number saved on this device.");
+      setHasError(false);
+    } catch (error) {
+      setMessage(error.message || "Could not save the PAN/VAT number.");
+      setHasError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <SectionHeading icon={Store} title="INVOICE TAX IDENTIFICATION" />
+      <Surface style={styles.sectionCard}>
+        <Text style={styles.body}>Add your registered 9-digit PAN/VAT number to print it on bills. Leave blank if you do not have one.</Text>
+        <Text style={[styles.fieldLabel, styles.taxNumberLabel]}>PAN / VAT REGISTRATION NUMBER</Text>
+        <TextInput
+          value={panVatNumber}
+          onChangeText={(value) => {
+            setPanVatNumber(value.replace(/\D/g, "").slice(0, 9));
+            setMessage("");
+          }}
+          placeholder="9-digit number"
+          keyboardType="number-pad"
+          maxLength={9}
+          style={styles.input}
+          accessibilityLabel="PAN or VAT registration number"
+        />
+        {message ? <Text style={[styles.feedback, hasError ? styles.feedbackError : styles.feedbackSuccess]}>{message}</Text> : null}
+        <Pressable
+          style={[styles.saveScheduleButton, saving && styles.buttonDisabled]}
+          onPress={save}
+          disabled={saving}
+          accessibilityRole="button"
+        >
+          <Text style={styles.saveScheduleText}>{saving ? "Saving…" : "Save PAN/VAT number"}</Text>
+        </Pressable>
+      </Surface>
+    </>
   );
 }
 
