@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { ScanLine, Search, X } from "lucide-react-native";
+import { Plus, ScanLine, Search, X } from "lucide-react-native";
 import { useStore } from "../src/StoreProvider";
 import { AppScreen, ScreenHeader, Surface, PrimaryButton } from "../src/components/Screen";
 import { colors } from "../src/theme";
@@ -68,7 +68,7 @@ export default function ScannerScreen() {
         <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={value} onChangeText={(text) => { setValue(text); setMessage(""); setHandled(false); }} onSubmitEditing={() => lookup(value)} placeholder="Barcode or SKU" autoCapitalize="characters" style={styles.input} accessibilityLabel="Barcode or SKU" returnKeyType="search" /></View>
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <PrimaryButton title="Find product" onPress={() => lookup(value)} />
-        {message.startsWith("Product not found") ? <Pressable style={styles.addProduct} onPress={() => { router.replace({ pathname: "/(tabs)/products", params: { barcode: value } }); }}><Text style={styles.link}>＋ Add this product</Text></Pressable> : null}
+        {message.startsWith("Product not found") ? <Pressable style={styles.addProduct} onPress={() => { router.replace({ pathname: "/(tabs)/products", params: { barcode: value } }); }}><Plus size={14} color={colors.red} strokeWidth={2.5} /><Text style={styles.link}>Add this product</Text></Pressable> : null}
       </Surface>
       <Text style={styles.footnote}>If camera permission is denied, manual barcode entry remains available.</Text>
     </AppScreen>
@@ -76,7 +76,7 @@ export default function ScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  closeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 20 },
+  closeButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 22 },
   cameraBox: { height: 280, position: "relative", overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "#191a1f", borderRadius: 16 },
   cameraPlaceholder: { alignItems: "center", paddingHorizontal: 20 },
   cameraText: { marginTop: 9, color: "white", fontSize: 12, fontWeight: "800" },
@@ -93,9 +93,9 @@ const styles = StyleSheet.create({
   manualCard: { marginTop: 12 },
   manualTitle: { marginBottom: 9, color: colors.ink, fontSize: 11, fontWeight: "800" },
   searchBox: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 9, paddingHorizontal: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8 },
-  input: { flex: 1, minHeight: 42, paddingHorizontal: 2, color: colors.ink, fontSize: 11 },
+  input: { flex: 1, minHeight: 42, paddingHorizontal: 2, color: colors.ink, fontSize: 13 },
   message: { marginBottom: 8, color: colors.amber, fontSize: 9 },
-  addProduct: { alignItems: "center", marginTop: 10 },
-  link: { color: colors.red, fontSize: 10, fontWeight: "800" },
+  addProduct: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, marginTop: 6 },
+  link: { color: colors.red, fontSize: 11, fontWeight: "800" },
   footnote: { marginTop: 11, color: "#8f96a0", fontSize: 8, textAlign: "center" },
 });

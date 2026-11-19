@@ -1,4 +1,4 @@
-import { Home, MoreHorizontal, Package, Plus, ReceiptText } from "lucide-react-native";
+import { Home, MoreHorizontal, Package, Plus, ReceiptText, Settings2 } from "lucide-react-native";
 import { Tabs } from "expo-router";
 import { View } from "react-native";
 import { colors } from "../../src/theme";
@@ -8,6 +8,7 @@ const icons = {
   sales: ReceiptText,
   products: Package,
   more: MoreHorizontal,
+  settings: Settings2,
 };
 
 export default function TabsLayout() {
@@ -25,7 +26,7 @@ export default function TabsLayout() {
           backgroundColor: colors.white,
           elevation: 8,
         },
-        tabBarLabelStyle: { fontSize: 8, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: "600" },
         tabBarIcon: ({ color }) => {
           if (route.name === "sale") {
             return (

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams } from "expo-router";
-import { Camera, Package, Plus, ScanLine, Search } from "lucide-react-native";
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ArrowLeft, Camera, Package, Plus, ScanLine, Search, X } from "lucide-react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useStore } from "../../src/StoreProvider";
 import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../../src/components/Screen";
 import { persistProductPhoto } from "../../src/lib/productImages";
@@ -12,7 +12,7 @@ const blankForm = () => ({ name: "", sku: "", barcode: "", category: "Drinks", u
 const money = (value) => `Rs ${Number(value || 0).toLocaleString("en-IN")}`;
 
 function ProductField({ label, value, onChangeText, placeholder, keyboardType = "default", editable = true, autoCapitalize = "sentences" }) {
-  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={[styles.input, !editable && styles.readOnly]} value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} editable={editable} autoCapitalize={autoCapitalize} /></View>;
+  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={[styles.input, !editable && styles.readOnly]} value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} editable={editable} autoCapitalize={autoCapitalize} accessibilityLabel={label.replace(" *", "")} /></View>;
 }
 
 export default function ProductsScreen() {
@@ -35,6 +35,8 @@ export default function ProductsScreen() {
   const scanHandled = useRef(false);
   const scannedFormActive = Boolean(scannedBarcode && scannedBarcode !== dismissedBarcode);
   const showNewForm = mode === "new" || scannedFormActive;
+  const editingProduct = mode !== null && mode !== "new" && !scannedFormActive;
+  const showingForm = editingProduct || showNewForm;
   const formValues = scannedFormActive ? { ...form, barcode: scannedBarcode } : form;
   const categories = useMemo(() => ["All", ...new Set(products.map((product) => product.category).filter(Boolean))], [products]);
   const filtered = useMemo(() => products.filter((product) => {
@@ -160,48 +162,36 @@ export default function ProductsScreen() {
   }
 
   return (
-    <AppScreen>
-      {mode !== null && mode !== "new" && !scannedFormActive ? (
-        <>
-          <ScreenHeader title="Edit Product" subtitle="Updates are saved on this device first" action={<Pressable onPress={() => setMode(null)}><Text style={styles.link}>Cancel</Text></Pressable>} />
-          <Surface style={styles.formCard}>
-            {cameraControls}
-            <ProductField label="Product name *" value={form.name} onChangeText={(name) => setForm({ ...form, name })} placeholder="Product name" />
-            <ProductField label="SKU *" value={form.sku} onChangeText={(sku) => setForm({ ...form, sku })} placeholder="SKU" />
-            <ProductField label="Barcode" value={form.barcode} onChangeText={(barcode) => setForm({ ...form, barcode })} placeholder="Barcode" keyboardType="number-pad" />
-            <ProductField label="Category" value={form.category} onChangeText={(category) => setForm({ ...form, category })} placeholder="Drinks, Snacks…" />
-            <Pressable style={styles.scanFieldButton} onPress={() => startCamera("barcode")}><ScanLine size={15} color={colors.red} strokeWidth={2} /><Text style={styles.secondaryButtonText}>Scan barcode</Text></Pressable>
-            <ProductField label="Cost price (Rs)" value={form.costPrice} onChangeText={(costPrice) => setForm({ ...form, costPrice })} placeholder="0.00" keyboardType="decimal-pad" />
-            <ProductField label="Selling price (Rs) *" value={form.sellingPrice} onChangeText={(sellingPrice) => setForm({ ...form, sellingPrice })} placeholder="0.00" keyboardType="decimal-pad" />
-            <ProductField label="Current stock" value={form.stockQty} onChangeText={() => {}} placeholder="0" keyboardType="decimal-pad" editable={false} />
-            <ProductField label="Low stock alert" value={form.lowStockThreshold} onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })} placeholder="5" keyboardType="decimal-pad" />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <PrimaryButton title={saving ? "Saving…" : "Save Changes"} onPress={submit} disabled={saving} style={styles.formButton} />
-          </Surface>
-        </>
-      ) : showNewForm ? (
-        <>
-          <ScreenHeader title="Add Product" subtitle="Create a product while online or offline" action={<Pressable onPress={() => { setMode(null); setDismissedBarcode(scannedBarcode); setError(""); }}><Text style={styles.link}>Cancel</Text></Pressable>} />
-          <Surface style={styles.formCard}>
-            {cameraControls}
-            <ProductField label="Product name *" value={form.name} onChangeText={(name) => setForm({ ...form, name })} placeholder="e.g. Coca Cola" />
-            <ProductField label="SKU *" value={form.sku} onChangeText={(sku) => setForm({ ...form, sku })} placeholder="e.g. CC001" autoCapitalize="characters" />
-            <ProductField label="Barcode" value={formValues.barcode} onChangeText={(barcode) => { setDismissedBarcode(scannedBarcode); setForm({ ...form, barcode }); }} placeholder="Enter or scan barcode" keyboardType="number-pad" />
-            <ProductField label="Category" value={form.category} onChangeText={(category) => setForm({ ...form, category })} placeholder="Drinks, Snacks…" />
-            <Pressable style={styles.scanFieldButton} onPress={() => startCamera("barcode")}><ScanLine size={15} color={colors.red} strokeWidth={2} /><Text style={styles.secondaryButtonText}>Scan barcode</Text></Pressable>
-            <ProductField label="Unit" value={form.unit} onChangeText={(unit) => setForm({ ...form, unit })} placeholder="unit" />
-            <ProductField label="Cost price (Rs)" value={form.costPrice} onChangeText={(costPrice) => setForm({ ...form, costPrice })} placeholder="0.00" keyboardType="decimal-pad" />
-            <ProductField label="Selling price (Rs) *" value={form.sellingPrice} onChangeText={(sellingPrice) => setForm({ ...form, sellingPrice })} placeholder="0.00" keyboardType="decimal-pad" />
-            <ProductField label="Opening stock" value={form.stockQty} onChangeText={(stockQty) => setForm({ ...form, stockQty })} placeholder="0" keyboardType="decimal-pad" />
-            <ProductField label="Low stock alert" value={form.lowStockThreshold} onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })} placeholder="5" keyboardType="decimal-pad" />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <PrimaryButton title={saving ? "Saving…" : "Save Product"} onPress={submit} disabled={saving} style={styles.formButton} />
-          </Surface>
-        </>
+    <AppScreen scroll={!showingForm} contentStyle={showingForm ? styles.formScreenContainer : undefined}>
+      {showingForm ? (
+        <KeyboardAvoidingView style={styles.formScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <ScreenHeader
+            title={editingProduct ? "Edit Product" : "Add Product"}
+            subtitle={editingProduct ? "Updates are saved on this device first" : "Create a product while online or offline"}
+            action={<Pressable style={styles.cancelButton} onPress={() => { setMode(null); setDismissedBarcode(scannedBarcode); setError(""); }}><ArrowLeft size={16} color={colors.red} /><Text style={styles.link}>Back</Text></Pressable>}
+          />
+          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formScrollContent} keyboardShouldPersistTaps="handled">
+            <Surface style={styles.formCard}>
+              {cameraControls}
+              <ProductField label="Product name *" value={form.name} onChangeText={(name) => setForm({ ...form, name })} placeholder="e.g. Coca Cola" />
+              <ProductField label="SKU *" value={form.sku} onChangeText={(sku) => setForm({ ...form, sku })} placeholder="e.g. CC001" autoCapitalize="characters" />
+              <ProductField label="Barcode" value={formValues.barcode} onChangeText={(barcode) => { setDismissedBarcode(scannedBarcode); setForm({ ...form, barcode }); }} placeholder="Enter or scan barcode" autoCapitalize="characters" />
+              <Pressable style={styles.scanFieldButton} onPress={() => startCamera("barcode")}><ScanLine size={15} color={colors.red} strokeWidth={2} /><Text style={styles.secondaryButtonText}>Scan barcode</Text></Pressable>
+              <ProductField label="Category" value={form.category} onChangeText={(category) => setForm({ ...form, category })} placeholder="e.g. Drinks or Snacks" />
+              <ProductField label="Unit" value={form.unit} onChangeText={(unit) => setForm({ ...form, unit })} placeholder="e.g. piece, pack, kg" />
+              <ProductField label="Cost price (Rs)" value={form.costPrice} onChangeText={(costPrice) => setForm({ ...form, costPrice })} placeholder="0.00" keyboardType="decimal-pad" />
+              <ProductField label="Selling price (Rs) *" value={form.sellingPrice} onChangeText={(sellingPrice) => setForm({ ...form, sellingPrice })} placeholder="0.00" keyboardType="decimal-pad" />
+              <ProductField label={editingProduct ? "Current stock" : "Opening stock"} value={form.stockQty} onChangeText={editingProduct ? () => {} : (stockQty) => setForm({ ...form, stockQty })} placeholder="0" keyboardType="decimal-pad" editable={!editingProduct} />
+              <ProductField label="Low stock alert" value={form.lowStockThreshold} onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })} placeholder="5" keyboardType="decimal-pad" />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+            </Surface>
+          </ScrollView>
+          <View style={styles.formAction}><PrimaryButton title={saving ? "Saving…" : editingProduct ? "Save Changes" : "Save Product"} onPress={submit} disabled={saving} /></View>
+        </KeyboardAvoidingView>
       ) : (
         <>
           <ScreenHeader title="Products" subtitle={`${products.length} products · stored on this device`} action={<Pressable style={styles.addButton} onPress={() => { setForm(blankForm()); setDismissedBarcode(scannedBarcode); setMode("new"); }}><Plus size={15} color="white" strokeWidth={2.5} /><Text style={styles.addText}>Add</Text></Pressable>} />
-          <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={query} onChangeText={setQuery} style={styles.search} placeholder="Search name, SKU or barcode" /></View>
+          <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={query} onChangeText={setQuery} style={styles.search} placeholder="Search name, SKU or barcode" accessibilityLabel="Search products" returnKeyType="search" /></View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroller} contentContainerStyle={styles.categoryContent}>
             {categories.map((category) => <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.categoryChip, category === selectedCategory && styles.categoryChipActive]}><Text style={[styles.categoryChipText, category === selectedCategory && styles.categoryChipTextActive]}>{category}</Text></Pressable>)}
           </ScrollView>
@@ -216,10 +206,10 @@ export default function ProductsScreen() {
               <View style={styles.productArt}>{product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} /> : <Package size={28} color={colors.red} strokeWidth={1.8} />}</View>
               <Text numberOfLines={1} style={styles.productName}>{product.name}</Text>
               <Text numberOfLines={1} style={styles.muted}>{product.category} · {product.sku}</Text>
-              <View style={styles.productMeta}><Text style={styles.price}>{money(product.selling_price)}</Text><Text style={[styles.stockBadge, low && styles.lowStockBadge]}>{stock} in stock</Text></View>
+              <View style={styles.productMeta}><Text style={styles.price}>{money(product.selling_price)}</Text><Text style={[styles.stockBadge, low && styles.lowStockBadge, stock <= 0 && styles.outStockBadge]}>{stock <= 0 ? "Out of stock" : low ? "Low stock" : `${stock} in stock`}</Text></View>
             </Pressable>;
           })}</View>
-          {filtered.length === 0 && <Surface style={styles.empty}><Text style={styles.emptyText}>No products yet. Add your first product; it will be saved locally.</Text><PrimaryButton title="Add Product" onPress={() => { setForm(blankForm()); setDismissedBarcode(scannedBarcode); setMode("new"); }} /></Surface>}
+          {filtered.length === 0 && <Surface style={styles.empty}><Text style={styles.emptyText}>{products.length === 0 ? "No products yet. Add your first product; it will be saved locally." : "No products match your search and filters."}</Text>{products.length === 0 ? <PrimaryButton title="Add Product" onPress={() => { setForm(blankForm()); setDismissedBarcode(scannedBarcode); setMode("new"); }} /> : <Pressable style={styles.clearFilters} onPress={() => { setQuery(""); setSelectedCategory("All"); setStockFilter("All"); }}><X size={15} color={colors.red} /><Text style={styles.link}>Clear search and filters</Text></Pressable>}</Surface>}
         </>
       )}
     </AppScreen>
@@ -228,42 +218,49 @@ export default function ProductsScreen() {
 
 const styles = StyleSheet.create({
   addButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 10, backgroundColor: colors.red, borderRadius: 8 },
-  addText: { color: "white", fontSize: 10, fontWeight: "800" },
+  addText: { color: "white", fontSize: 11, fontWeight: "800" },
   searchBox: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 9 },
-  search: { flex: 1, color: colors.ink, fontSize: 10 },
+  search: { flex: 1, color: colors.ink, fontSize: 12 },
   categoryScroller: { flexGrow: 0, marginTop: 10 },
   categoryContent: { gap: 6, paddingVertical: 2 },
-  categoryChip: { minHeight: 30, justifyContent: "center", paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 16 },
+  categoryChip: { minHeight: 40, justifyContent: "center", paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 20 },
   categoryChipActive: { backgroundColor: colors.red, borderColor: colors.red },
-  categoryChipText: { color: "#707782", fontSize: 9 },
+  categoryChipText: { color: "#707782", fontSize: 10 },
   categoryChipTextActive: { color: "white", fontWeight: "800" },
   filterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, marginBottom: 8 },
   filterText: { color: "#999fa8", fontSize: 8, fontWeight: "800", letterSpacing: 0.8 },
   stockFilters: { flexDirection: "row", gap: 5 },
-  stockFilter: { paddingHorizontal: 9, paddingVertical: 5, backgroundColor: "white", borderRadius: 12 },
+  stockFilter: { minHeight: 36, justifyContent: "center", paddingHorizontal: 9, backgroundColor: "white", borderRadius: 16 },
   stockFilterActive: { backgroundColor: "#fff0ef" },
   stockFilterText: { color: "#858c95", fontSize: 8, fontWeight: "700" },
   stockFilterTextActive: { color: colors.red },
   productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 9 },
   productCard: { width: "48.5%", minHeight: 156, padding: 9, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 11 },
   productArt: { height: 79, alignItems: "center", justifyContent: "center", marginBottom: 8, overflow: "hidden", backgroundColor: "#fff0ef", borderRadius: 8 },
-  productName: { color: colors.ink, fontSize: 10, fontWeight: "800" },
-  muted: { marginTop: 3, color: "#8e949e", fontSize: 8 },
-  price: { marginTop: 3, color: colors.red, fontSize: 9, fontWeight: "800" },
+  productName: { color: colors.ink, fontSize: 12, fontWeight: "800" },
+  muted: { marginTop: 3, color: "#8e949e", fontSize: 9 },
+  price: { marginTop: 3, color: colors.red, fontSize: 11, fontWeight: "800" },
   productMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, marginTop: 4 },
-  stockBadge: { color: colors.green, fontSize: 7, fontWeight: "700" },
+  stockBadge: { color: colors.green, fontSize: 8, fontWeight: "700" },
   lowStockBadge: { color: colors.amber },
+  outStockBadge: { color: colors.red },
   productImage: { width: "100%", height: "100%", resizeMode: "contain" },
   formCard: { padding: 14 },
+  formScreenContainer: { paddingBottom: 0 },
+  formScreen: { flex: 1 },
+  formScroll: { flex: 1 },
+  formScrollContent: { paddingBottom: 12 },
+  formAction: { paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
+  cancelButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 5 },
   photoCard: { gap: 10, marginBottom: 13, padding: 10, backgroundColor: "#f8f8f9", borderColor: colors.line },
   photoRow: { alignItems: "center", gap: 9 },
   photoPreview: { width: 92, height: 92, resizeMode: "contain", backgroundColor: "white", borderRadius: 9 },
   photoPlaceholder: { width: 92, height: 92, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
   photoCopy: { alignItems: "center" },
-  photoTitle: { color: colors.ink, fontSize: 10, fontWeight: "800" },
-  photoHint: { marginTop: 4, color: colors.muted, fontSize: 8, lineHeight: 12, textAlign: "center" },
+  photoTitle: { color: colors.ink, fontSize: 11, fontWeight: "800" },
+  photoHint: { marginTop: 4, color: colors.muted, fontSize: 9, lineHeight: 13, textAlign: "center" },
   secondaryButton: { minHeight: 38, justifyContent: "center", marginTop: 7, paddingHorizontal: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 7 },
-  secondaryButtonText: { color: colors.red, fontSize: 9, fontWeight: "800" },
+  secondaryButtonText: { color: colors.red, fontSize: 10, fontWeight: "800" },
   cameraPanel: { gap: 8 },
   cameraPreview: { height: 210, overflow: "hidden", backgroundColor: colors.dark, borderRadius: 9 },
   cameraAction: { marginTop: 0 },
@@ -272,12 +269,12 @@ const styles = StyleSheet.create({
   scanBarcodeButton: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 7 },
   scanFieldButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, minHeight: 40, marginTop: -4, marginBottom: 10, paddingVertical: 4 },
   field: { marginBottom: 10 },
-  label: { marginBottom: 5, color: "#424953", fontSize: 9, fontWeight: "700" },
-  input: { height: 44, paddingHorizontal: 10, color: colors.ink, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8, fontSize: 11 },
+  label: { marginBottom: 5, color: "#424953", fontSize: 11, fontWeight: "700" },
+  input: { height: 44, paddingHorizontal: 10, color: colors.ink, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8, fontSize: 13 },
   readOnly: { color: colors.muted, backgroundColor: "#f5f6f7" },
-  formButton: { marginTop: 8 },
   error: { marginBottom: 8, color: colors.red, fontSize: 10 },
   link: { color: colors.red, fontSize: 10, fontWeight: "800" },
   empty: { gap: 12, marginTop: 12 },
   emptyText: { color: colors.muted, fontSize: 10, lineHeight: 15 },
+  clearFilters: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 4 },
 });
