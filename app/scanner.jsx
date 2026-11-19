@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -14,6 +14,7 @@ export default function ScannerScreen() {
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
   const [handled, setHandled] = useState(false);
+  const handledRef = useRef(false);
 
   function lookup(code) {
     const normalizedCode = code.trim();
@@ -40,6 +41,7 @@ export default function ScannerScreen() {
     try {
       const nextPermission = permission?.granted ? permission : await requestPermission();
       if (nextPermission.granted) {
+        handledRef.current = false;
         setHandled(false);
         setScanning(true);
       } else {
@@ -57,15 +59,20 @@ export default function ScannerScreen() {
         {scanning && permission?.granted ? <CameraView
           style={StyleSheet.absoluteFill}
           facing="back"
-          barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "qr"] }}
-          onBarcodeScanned={handled ? undefined : ({ data }) => lookup(data)}
+          barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code39", "code93", "codabar", "code128", "qr"] }}
+          onBarcodeScanned={handled ? undefined : ({ data }) => {
+            if (handledRef.current) return;
+            handledRef.current = true;
+            setHandled(true);
+            lookup(data);
+          }}
         /> : <View style={styles.cameraPlaceholder}><ScanLine size={38} color="#ff625d" strokeWidth={1.7} /><Text style={styles.cameraText}>Camera scanner</Text><Text style={styles.cameraHint}>Camera access is requested only when you start scanning.</Text></View>}
         <View pointerEvents="none" style={styles.scanFrame}><View style={styles.cornerTL} /><View style={styles.cornerTR} /><View style={styles.cornerBL} /><View style={styles.cornerBR} /><View style={styles.scanLine} /></View>
       </View>
-      {!scanning ? <PrimaryButton title={permission?.granted ? "Start camera scan" : "Allow camera and scan"} onPress={startScanning} style={styles.cameraButton} /> : <Pressable style={styles.stopButton} onPress={() => { setScanning(false); setHandled(false); }}><Text style={styles.stopText}>Stop scanning</Text></Pressable>}
+      {!scanning ? <PrimaryButton title={permission?.granted ? "Start camera scan" : "Allow camera and scan"} onPress={startScanning} style={styles.cameraButton} /> : <Pressable style={styles.stopButton} onPress={() => { setScanning(false); handledRef.current = false; setHandled(false); }}><Text style={styles.stopText}>Stop scanning</Text></Pressable>}
       <Surface style={styles.manualCard}>
         <Text style={styles.manualTitle}>Enter barcode or SKU manually</Text>
-        <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={value} onChangeText={(text) => { setValue(text); setMessage(""); setHandled(false); }} onSubmitEditing={() => lookup(value)} placeholder="Barcode or SKU" autoCapitalize="characters" style={styles.input} accessibilityLabel="Barcode or SKU" returnKeyType="search" /></View>
+        <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={value} onChangeText={(text) => { setValue(text); setMessage(""); handledRef.current = false; setHandled(false); }} onSubmitEditing={() => lookup(value)} placeholder="Barcode or SKU" autoCapitalize="characters" style={styles.input} accessibilityLabel="Barcode or SKU" returnKeyType="search" /></View>
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <PrimaryButton title="Find product" onPress={() => lookup(value)} />
         {message.startsWith("Product not found") ? <Pressable style={styles.addProduct} onPress={() => { router.replace({ pathname: "/(tabs)/products", params: { barcode: value } }); }}><Plus size={14} color={colors.red} strokeWidth={2.5} /><Text style={styles.link}>Add this product</Text></Pressable> : null}
@@ -81,7 +88,7 @@ const styles = StyleSheet.create({
   cameraPlaceholder: { alignItems: "center", paddingHorizontal: 20 },
   cameraText: { marginTop: 9, color: "white", fontSize: 12, fontWeight: "800" },
   cameraHint: { maxWidth: 230, marginTop: 5, color: "#b9bbc2", fontSize: 9, textAlign: "center", lineHeight: 14 },
-  scanFrame: { position: "absolute", width: "76%", height: 115, borderColor: "rgba(255,255,255,.35)", borderWidth: 1 },
+  scanFrame: { position: "absolute", width: "92%", height: 115, borderColor: "rgba(255,255,255,.35)", borderWidth: 1 },
   cornerTL: { position: "absolute", top: -1, left: -1, width: 20, height: 20, borderTopColor: colors.red, borderLeftColor: colors.red, borderTopWidth: 2, borderLeftWidth: 2 },
   cornerTR: { position: "absolute", top: -1, right: -1, width: 20, height: 20, borderTopColor: colors.red, borderRightColor: colors.red, borderTopWidth: 2, borderRightWidth: 2 },
   cornerBL: { position: "absolute", bottom: -1, left: -1, width: 20, height: 20, borderBottomColor: colors.red, borderLeftColor: colors.red, borderBottomWidth: 2, borderLeftWidth: 2 },

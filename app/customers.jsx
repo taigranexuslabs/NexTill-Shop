@@ -26,7 +26,7 @@ export default function CustomersScreen() {
   return (
     <AppScreen>
       <ScreenHeader title="Customers" subtitle={`${customers.length} customer records`} action={<Pressable style={styles.back} onPress={() => router.back()}><ArrowLeft size={17} color={colors.ink} /></Pressable>} />
-      <View style={styles.search}><Search size={17} color={colors.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search customers" style={styles.input} /></View>
+      <View style={styles.search}><Search size={18} color={colors.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Find a customer by name" style={styles.input} /></View>
       {filtered.map((item, index) => (
         <Surface key={item.name} style={styles.row}>
           <View style={styles.avatar}><Text style={styles.initial}>{String(item.name).charAt(0).toUpperCase()}</Text></View>
@@ -40,11 +40,11 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderRadius: 22, borderWidth: 1, borderColor: colors.line },
-  search: { height: 44, flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 9 },
-  input: { flex: 1, color: colors.ink, fontSize: 11 },
-  row: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  search: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 12, paddingHorizontal: 13, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 12 },
+  input: { flex: 1, color: colors.ink, fontSize: 14 },
+  row: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   avatar: { width: 42, height: 42, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 21 },
-  initial: { color: colors.red, fontSize: 16, fontWeight: "900" },
-  copy: { flex: 1 }, name: { color: colors.ink, fontSize: 12, fontWeight: "800" }, detail: { marginTop: 4, color: colors.muted, fontSize: 9 },
-  empty: { alignItems: "center", gap: 8, marginTop: 10 }, emptyText: { color: colors.muted, fontSize: 10, textAlign: "center" },
+  initial: { color: colors.red, fontSize: 18, fontWeight: "900" },
+  copy: { flex: 1 }, name: { color: colors.ink, fontSize: 14, fontWeight: "800" }, detail: { marginTop: 4, color: colors.muted, fontSize: 12 },
+  empty: { alignItems: "center", gap: 10, marginTop: 10 }, emptyText: { color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: "center" },
 });

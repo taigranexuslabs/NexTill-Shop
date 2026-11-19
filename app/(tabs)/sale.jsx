@@ -23,48 +23,48 @@ export default function SaleScreen() {
   return (
     <AppScreen scroll={false} contentStyle={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="New Sale" subtitle="Tap a product to add it to the cart" action={<Pressable style={styles.scanButton} onPress={() => router.push("/scanner")}><ScanLine size={16} color={colors.red} strokeWidth={2} /><Text style={styles.scanText}>Scan</Text></Pressable>} />
-        <View style={styles.searchBox}><Search size={18} color="#828994" strokeWidth={2} /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Search name, SKU or barcode" accessibilityLabel="Search products for sale" returnKeyType="search" /></View>
+        <ScreenHeader title="Sell" subtitle="Choose items to add them to the bill" action={<Pressable style={styles.scanButton} onPress={() => router.push("/scanner")}><ScanLine size={18} color={colors.red} strokeWidth={2} /><Text style={styles.scanText}>Scan item</Text></Pressable>} />
+        <View style={styles.searchBox}><Search size={19} color="#78837f" strokeWidth={2} /><TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Find an item by name or code" accessibilityLabel="Search products for sale" returnKeyType="search" /></View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroller} contentContainerStyle={styles.categoryContent}>{categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.category, item === category && styles.categoryActive]}><Text style={[styles.categoryText, item === category && styles.categoryTextActive]}>{item}</Text></Pressable>)}</ScrollView>
         <View style={styles.grid}>{visibleProducts.map((product) => <Pressable key={product.id} style={[styles.product, Number(product.stock_qty) === 0 && styles.dimmed]} disabled={Number(product.stock_qty) === 0} onPress={() => addToCart(product)}><View style={[styles.productArt, { backgroundColor: "#fff0ef" }]}>{product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} /> : <Package size={31} color={colors.red} strokeWidth={1.8} />}</View><Text numberOfLines={1} style={styles.productName}>{product.name}</Text><Text style={styles.productPrice}>{money(product.selling_price)}</Text><Text style={styles.stock}>Stock: {product.stock_qty}</Text><View style={styles.addButton}><Plus size={17} color={colors.red} strokeWidth={2.5} /></View></Pressable>)}</View>
         {visibleProducts.length === 0 && <Surface style={styles.noProducts}><Package size={28} color={colors.red} strokeWidth={1.8} /><Text style={styles.emptyTitle}>{products.length === 0 ? "Inventory is empty" : "No products found"}</Text><Text style={styles.stock}>{products.length === 0 ? "Add products in Inventory to start a sale." : "Try another search or category."}</Text><Pressable style={styles.emptyAction} onPress={() => { if (products.length === 0) router.push("/(tabs)/products"); else { setSearch(""); setCategory("All"); } }}><Text style={styles.emptyActionText}>{products.length === 0 ? "Open Inventory" : "Clear search and filters"}</Text></Pressable></Surface>}
         {cartNotice ? <Text style={styles.cartNotice}>{cartNotice}</Text> : null}
       </ScrollView>
-      <Surface style={styles.cartSummary}><View><Text style={styles.cartItems}>{itemCount} {itemCount === 1 ? "item" : "items"} in cart</Text><Text style={styles.cartTotal}>{money(total)}</Text></View><Pressable style={styles.viewCart} onPress={() => router.push("/checkout")} disabled={!cart.length}><ShoppingCart size={15} color="white" strokeWidth={2} /><Text style={styles.viewCartText}>{cart.length ? "View Cart" : "Cart empty"}</Text></Pressable></Surface>
+      <Surface style={styles.cartSummary}><View><Text style={styles.cartItems}>{itemCount} {itemCount === 1 ? "item" : "items"} · bill total</Text><Text style={styles.cartTotal}>{money(total)}</Text></View><Pressable style={styles.viewCart} onPress={() => router.push("/checkout")} disabled={!cart.length}><ShoppingCart size={18} color="white" strokeWidth={2} /><Text style={styles.viewCartText}>{cart.length ? "Review bill" : "Add items"}</Text></Pressable></Surface>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { paddingBottom: 0 },
-  scrollContent: { flexGrow: 1, paddingBottom: 76 },
-  scanButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8 },
-  scanText: { color: colors.red, fontSize: 10, fontWeight: "800" },
-  searchBox: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 10 },
-  searchInput: { flex: 1, color: colors.ink, fontSize: 12 },
+  scrollContent: { flexGrow: 1, paddingBottom: 90 },
+  scanButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 13, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 12 },
+  scanText: { color: colors.red, fontSize: 12, fontWeight: "800" },
+  searchBox: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 13 },
+  searchInput: { flex: 1, color: colors.ink, fontSize: 14 },
   categoryScroller: { flexGrow: 0, marginVertical: 11 },
   categoryContent: { gap: 6 },
-  category: { minHeight: 36, justifyContent: "center", paddingHorizontal: 12, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 18 },
+  category: { minHeight: 42, justifyContent: "center", paddingHorizontal: 15, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 21 },
   categoryActive: { backgroundColor: colors.red, borderColor: colors.red },
-  categoryText: { color: "#707782", fontSize: 10 },
+  categoryText: { color: "#626f6b", fontSize: 12 },
   categoryTextActive: { color: "white", fontWeight: "800" },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
-  product: { width: "48.5%", minHeight: 165, position: "relative", padding: 9, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 11 },
-  productArt: { height: 79, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  product: { width: "48.5%", minHeight: 184, position: "relative", padding: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 15 },
+  productArt: { height: 92, alignItems: "center", justifyContent: "center", borderRadius: 10 },
   productImage: { width: "100%", height: "100%", borderRadius: 8 },
-  productName: { marginTop: 7, color: colors.ink, fontSize: 12, fontWeight: "800" },
-  productPrice: { marginTop: 4, color: colors.red, fontSize: 12, fontWeight: "800" },
-  stock: { marginTop: 4, color: "#8c929c", fontSize: 10 },
-  addButton: { position: "absolute", right: 8, bottom: 8, width: 31, height: 31, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 8 },
+  productName: { marginTop: 8, color: colors.ink, fontSize: 14, fontWeight: "800" },
+  productPrice: { marginTop: 5, color: colors.red, fontSize: 14, fontWeight: "800" },
+  stock: { marginTop: 5, color: "#78837f", fontSize: 12 },
+  addButton: { position: "absolute", right: 9, bottom: 9, width: 38, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 11 },
   dimmed: { opacity: 0.5 },
   noProducts: { alignItems: "center", gap: 5, marginTop: 12, paddingVertical: 20 },
-  emptyTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-  emptyAction: { minHeight: 40, justifyContent: "center", marginTop: 5, paddingHorizontal: 10, backgroundColor: "#fff0ef", borderRadius: 8 },
-  emptyActionText: { color: colors.red, fontSize: 10, fontWeight: "800" },
-  cartSummary: { minHeight: 57, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9, paddingHorizontal: 12, backgroundColor: colors.dark, borderColor: colors.dark },
-  cartItems: { color: "#e0e1e4", fontSize: 9 },
-  cartTotal: { marginTop: 2, color: "white", fontSize: 15, fontWeight: "800" },
-  viewCart: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 11, backgroundColor: colors.red, borderRadius: 8 },
-  viewCartText: { color: "white", fontSize: 10, fontWeight: "800" },
-  cartNotice: { marginTop: 8, color: colors.amber, fontSize: 9 },
+  emptyTitle: { color: colors.ink, fontSize: 17, fontWeight: "800" },
+  emptyAction: { minHeight: 46, justifyContent: "center", marginTop: 6, paddingHorizontal: 14, backgroundColor: "#fff0ef", borderRadius: 11 },
+  emptyActionText: { color: colors.red, fontSize: 12, fontWeight: "800" },
+  cartSummary: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9, paddingHorizontal: 16, backgroundColor: colors.dark, borderColor: colors.dark },
+  cartItems: { color: "#e0e7e4", fontSize: 11 },
+  cartTotal: { marginTop: 3, color: "white", fontSize: 19, fontWeight: "800" },
+  viewCart: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, backgroundColor: colors.red, borderRadius: 12 },
+  viewCartText: { color: "white", fontSize: 12, fontWeight: "800" },
+  cartNotice: { marginTop: 8, color: colors.amber, fontSize: 11 },
 });

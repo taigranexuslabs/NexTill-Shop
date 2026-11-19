@@ -62,9 +62,9 @@ export default function StaffScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader title="Staff" subtitle={`${staff.length + 1} people · local directory only`} action={<Pressable style={styles.back} onPress={() => router.back()}><ArrowLeft size={17} color={colors.ink} /></Pressable>} />
+      <ScreenHeader title="Staff list" subtitle={`${staff.length + 1} people in your team`} action={<Pressable style={styles.back} onPress={() => router.back()}><ArrowLeft size={17} color={colors.ink} /></Pressable>} />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <View style={styles.heading}><Text style={styles.sectionTitle}>Team members</Text><Pressable style={styles.addButton} disabled={loading || loadFailed} onPress={() => { setError(""); setOpen(true); }}><Plus size={15} color="white" /><Text style={styles.addText}>Add Staff</Text></Pressable></View>
+      <View style={styles.heading}><Text style={styles.sectionTitle}>Team members</Text><Pressable style={styles.addButton} disabled={loading || loadFailed} onPress={() => { setError(""); setOpen(true); }}><Plus size={17} color="white" /><Text style={styles.addText}>Add person</Text></Pressable></View>
       {loadFailed ? <Pressable style={styles.retry} onPress={() => { setLoading(true); setError(""); setLoadAttempt((attempt) => attempt + 1); }}><Text style={styles.retryText}>Retry loading saved staff</Text></Pressable> : null}
       {loading ? <Text style={styles.empty}>Loading saved staff…</Text> : null}
       <Surface style={styles.row}>
@@ -93,21 +93,21 @@ export default function StaffScreen() {
 
 const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderRadius: 22, borderWidth: 1, borderColor: colors.line },
-  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  sectionTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  addButton: { height: 42, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, backgroundColor: colors.red, borderRadius: 8 },
-  addText: { color: "white", fontSize: 10, fontWeight: "800" },
-  row: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
+  addButton: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, backgroundColor: colors.red, borderRadius: 12 },
+  addText: { color: "white", fontSize: 12, fontWeight: "800" },
+  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   avatar: { width: 42, height: 42, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 21 },
-  copy: { flex: 1 }, name: { color: colors.ink, fontSize: 12, fontWeight: "800" }, detail: { marginTop: 4, color: colors.muted, fontSize: 9 },
-  status: { color: colors.green, fontSize: 9, fontWeight: "800" },
-  error: { marginBottom: 8, color: colors.red, fontSize: 10, lineHeight: 15 },
-  empty: { paddingVertical: 12, color: colors.muted, fontSize: 10, textAlign: "center" },
+  copy: { flex: 1 }, name: { color: colors.ink, fontSize: 14, fontWeight: "800" }, detail: { marginTop: 4, color: colors.muted, fontSize: 12 },
+  status: { color: colors.green, fontSize: 11, fontWeight: "800" },
+  error: { marginBottom: 8, color: colors.red, fontSize: 12, lineHeight: 18 },
+  empty: { paddingVertical: 14, color: colors.muted, fontSize: 12, textAlign: "center" },
   retry: { minHeight: 40, justifyContent: "center" },
   retryText: { color: colors.red, fontSize: 10, fontWeight: "800", textAlign: "center" },
   modalBackdrop: { flex: 1, justifyContent: "center", padding: 18, backgroundColor: "rgba(20,22,26,.55)" },
   modal: { padding: 16, backgroundColor: "white", borderRadius: 14 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }, modalTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
   label: { marginTop: 7, marginBottom: 5, color: colors.ink, fontSize: 10, fontWeight: "700" },
-  input: { height: 44, marginBottom: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 8, color: colors.ink },
+  input: { height: 50, marginBottom: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 11, color: colors.ink, fontSize: 14 },
 });

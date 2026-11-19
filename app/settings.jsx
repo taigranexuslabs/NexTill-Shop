@@ -141,7 +141,7 @@ export default function SettingsScreen() {
     <AppScreen>
       <ScreenHeader
         title="Settings"
-        subtitle="Manage your shop and data"
+        subtitle="Your shop details and a safe copy of your records"
         action={
           <Pressable
             style={styles.backButton}
@@ -171,13 +171,13 @@ export default function SettingsScreen() {
         <View style={styles.localPill}><Check size={12} color={colors.green} /><Text style={styles.localPillText}>On device</Text></View>
       </Surface>
 
-      <SectionHeading icon={CloudUpload} title="BACKUP & RESTORE" />
+      <SectionHeading icon={CloudUpload} title="SAVE A COPY OF YOUR DATA" />
       <Surface style={styles.sectionCard}>
         <View style={styles.backupHeader}>
           <View style={styles.backupIcon}><Cloud size={19} color={colors.red} /></View>
           <View style={styles.backupCopy}>
-            <Text style={styles.cardTitle}>Cloud backup</Text>
-            <Text style={styles.body}>Your sales and products stay available on this device. Backups add an off-device copy.</Text>
+            <Text style={styles.cardTitle}>Online backup</Text>
+            <Text style={styles.body}>Your shop works on this phone. An online backup keeps an extra copy safe.</Text>
           </View>
         </View>
         <View style={styles.statusRow}>
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
         ) : null}
       </Surface>
 
-      <SectionHeading icon={UserRound} title="CLOUD ACCOUNT" />
+      <SectionHeading icon={UserRound} title="OPTIONAL ONLINE BACKUP ACCOUNT" />
       <Surface style={styles.sectionCard}>
         {session ? (
           <>
@@ -283,7 +283,7 @@ export default function SettingsScreen() {
           </>
         ) : (
           <>
-            <Text style={styles.body}>Sign in to back up this shop to your Supabase account. Your local data remains available either way.</Text>
+            <Text style={styles.body}>Sign in to save an extra copy online. Your shop stays on this phone either way.</Text>
             <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
             <TextInput
               value={email}
@@ -401,14 +401,14 @@ const styles = StyleSheet.create({
   localPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "#eaf7f1", borderRadius: 20 },
   localPillText: { color: colors.green, fontSize: 9, fontWeight: "800" },
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 20, marginBottom: 8, paddingHorizontal: 2 },
-  sectionTitle: { color: "#717985", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  sectionTitle: { color: "#66736f", fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
   sectionTitleAttention: { color: colors.amber },
   sectionCard: { padding: 14 },
   backupHeader: { flexDirection: "row", alignItems: "flex-start", gap: 11 },
   backupIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#fff0ef" },
   backupCopy: { flex: 1 },
   cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  body: { marginTop: 5, color: colors.muted, fontSize: 11, lineHeight: 16 },
+  body: { marginTop: 5, color: colors.muted, fontSize: 13, lineHeight: 19 },
   statusRow: { flexDirection: "row", alignItems: "center", minHeight: 40, marginTop: 12, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
   statusDot: { width: 8, height: 8, marginRight: 7, borderRadius: 4 },
   dotSuccess: { backgroundColor: colors.green },

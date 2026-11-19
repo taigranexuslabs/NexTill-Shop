@@ -24,7 +24,6 @@
       },
       "predictiveBackGestureEnabled": false
     },
-
     "plugins": [
       "expo-router",
       [
@@ -41,11 +40,12 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow NexTill Shop to take product photos and scan barcodes.",
+          "cameraPermission": "Allow NexTill Shop to take product photos, optional customer photos, and scan barcodes.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

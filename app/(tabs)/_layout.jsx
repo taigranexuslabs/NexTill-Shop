@@ -17,21 +17,21 @@ export default function TabsLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.red,
-        tabBarInactiveTintColor: "#8b919b",
+        tabBarInactiveTintColor: "#78837f",
         tabBarStyle: {
-          height: 68,
-          paddingTop: 7,
-          paddingBottom: 7,
+          height: 76,
+          paddingTop: 8,
+          paddingBottom: 9,
           borderTopColor: colors.line,
           backgroundColor: colors.white,
-          elevation: 8,
+          elevation: 10,
         },
-        tabBarLabelStyle: { fontSize: 9, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
         tabBarIcon: ({ color }) => {
           if (route.name === "sale") {
             return (
-              <View style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center", marginTop: -18, backgroundColor: colors.red, borderRadius: 22, borderWidth: 3, borderColor: colors.white, elevation: 4 }}>
-                <Plus size={23} color={colors.white} strokeWidth={2.5} />
+              <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center", marginTop: -20, backgroundColor: colors.red, borderRadius: 24, borderWidth: 3, borderColor: colors.white, elevation: 5 }}>
+                <Plus size={25} color={colors.white} strokeWidth={2.5} />
               </View>
             );
           }
@@ -40,11 +40,11 @@ export default function TabsLayout() {
         },
       })}
     >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="sales" options={{ title: "Sales" }} />
-      <Tabs.Screen name="sale" options={{ title: "New Sale" }} />
-      <Tabs.Screen name="products" options={{ title: "Products" }} />
-      <Tabs.Screen name="more" options={{ title: "More" }} />
+      <Tabs.Screen name="index" options={{ title: "Today" }} />
+      <Tabs.Screen name="sales" options={{ title: "Bills" }} />
+      <Tabs.Screen name="sale" options={{ title: "Sell" }} />
+      <Tabs.Screen name="products" options={{ title: "Stock" }} />
+      <Tabs.Screen name="more" options={{ title: "Tools" }} />
     </Tabs>
   );
 }

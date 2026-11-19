@@ -6,12 +6,12 @@ import { AppScreen, ScreenHeader, Surface } from "../../src/components/Screen";
 import { colors } from "../../src/theme";
 
 const links = [
-  { title: "Shop profile & backup", detail: "Shop details, account and sync", icon: Settings2, href: "/settings" },
-  { title: "Reports & analytics", detail: "Sales and profit insights", icon: ChartNoAxesCombined, href: "/reports" },
-  { title: "Expenses", detail: "Local list · not included in reports", icon: WalletCards, href: "/expenses" },
-  { title: "Customers", detail: "View customer records", icon: Users, href: "/customers" },
-  { title: "Due payments", detail: "Track balances and record payments", icon: WalletCards, href: "/due-payments" },
-  { title: "Staff & employees", detail: "Local directory · no staff accounts", icon: UserRoundCog, href: "/staff" },
+  { title: "Shop settings & backup", detail: "Shop details and a safe copy of your records", icon: Settings2, href: "/settings" },
+  { title: "Reports", detail: "See sales and estimated profit", icon: ChartNoAxesCombined, href: "/reports" },
+  { title: "Expenses", detail: "Keep a list of shop spending", icon: WalletCards, href: "/expenses" },
+  { title: "Customers", detail: "See customer visit history", icon: Users, href: "/customers" },
+  { title: "Money customers owe", detail: "See balances and record payments", icon: WalletCards, href: "/due-payments" },
+  { title: "Staff list", detail: "Keep your team contact list", icon: UserRoundCog, href: "/staff" },
 ];
 
 export default function MoreScreen() {
@@ -20,7 +20,7 @@ export default function MoreScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeader title="More" subtitle="Shop tools and account" />
+      <ScreenHeader title="Tools" subtitle="Everything else for running your shop" />
       <Surface style={styles.profile}>
         <View style={styles.avatar}><Text style={styles.avatarText}>{ownerInitial}</Text></View>
         <View style={styles.profileCopy}>
@@ -52,20 +52,20 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   profile: { minHeight: 91, flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-  avatar: { width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 24 },
+  avatar: { width: 50, height: 50, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 25 },
   avatarText: { color: colors.red, fontSize: 20, fontWeight: "800" },
   profileCopy: { flex: 1 },
-  owner: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  shopName: { marginTop: 4, color: colors.muted, fontSize: 11 },
-  address: { marginTop: 3, color: "#959ba4", fontSize: 9 },
-  section: { marginTop: 18, marginBottom: 8, color: "#9298a2", fontSize: 9, fontWeight: "800", letterSpacing: 0.9 },
+  owner: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+  shopName: { marginTop: 4, color: colors.muted, fontSize: 13 },
+  address: { marginTop: 3, color: "#78837f", fontSize: 11 },
+  section: { marginTop: 22, marginBottom: 10, color: "#78837f", fontSize: 11, fontWeight: "800", letterSpacing: 0.9 },
   menu: { paddingVertical: 0 },
-  menuItem: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 10 },
+  menuItem: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12 },
   menuDivider: { borderBottomColor: colors.line, borderBottomWidth: 1 },
-  menuIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
+  menuIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 12 },
   menuCopy: { flex: 1 },
-  menuTitle: { color: colors.ink, fontSize: 12, fontWeight: "800" },
-  menuDetail: { marginTop: 4, color: colors.muted, fontSize: 10 },
+  menuTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+  menuDetail: { marginTop: 4, color: colors.muted, fontSize: 12, lineHeight: 17 },
   about: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
   aboutIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
   aboutCopy: { flex: 1 },

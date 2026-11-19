@@ -54,6 +54,8 @@ export async function getDatabase() {
           shop_id TEXT NOT NULL,
           invoice_no TEXT NOT NULL,
           customer_name TEXT NOT NULL DEFAULT 'Walk-in Customer',
+          customer_phone TEXT,
+          customer_photo_uri TEXT,
           subtotal REAL NOT NULL,
           discount REAL NOT NULL DEFAULT 0,
           tax REAL NOT NULL DEFAULT 0,
@@ -124,6 +126,12 @@ export async function getDatabase() {
         await db.execAsync("ALTER TABLE products ADD COLUMN cloud_image_url TEXT");
       }
       const saleColumns = await db.getAllAsync("PRAGMA table_info(sales)");
+      if (!saleColumns.some((column) => column.name === "customer_phone")) {
+        await db.execAsync("ALTER TABLE sales ADD COLUMN customer_phone TEXT");
+      }
+      if (!saleColumns.some((column) => column.name === "customer_photo_uri")) {
+        await db.execAsync("ALTER TABLE sales ADD COLUMN customer_photo_uri TEXT");
+      }
       if (!saleColumns.some((column) => column.name === "outstanding_amount")) {
         await db.execAsync(`
           ALTER TABLE sales ADD COLUMN outstanding_amount REAL NOT NULL DEFAULT 0;
@@ -131,6 +139,9 @@ export async function getDatabase() {
           SET outstanding_amount = MAX(0, total - MIN(total, MAX(0, amount_received - change_due)));
         `);
       }
+      await db.execAsync(
+        "CREATE INDEX IF NOT EXISTS sales_due_idx ON sales(shop_id, created_at DESC) WHERE outstanding_amount > 0",
+      );
       await db.execAsync(`
         INSERT OR IGNORE INTO sale_payments (id, shop_id, sale_id, amount, payment_method, paid_at)
         SELECT id || ':initial', shop_id, id,
@@ -214,17 +225,55 @@ export async function readSales(shopId, limit = 100) {
     shopId,
     limit,
   );
+  if (sales.length === 0) return sales;
+  const placeholders = sales.map(() => "?").join(", ");
+  const saleIds = sales.map((sale) => sale.id);
+  const [items, payments] = await Promise.all([
+    db.getAllAsync(`SELECT * FROM sale_items WHERE sale_id IN (${placeholders}) ORDER BY rowid`, ...saleIds),
+    db.getAllAsync(`SELECT * FROM sale_payments WHERE sale_id IN (${placeholders}) ORDER BY paid_at, rowid`, ...saleIds),
+  ]);
+  const itemsBySale = new Map();
+  const paymentsBySale = new Map();
+  for (const item of items) {
+    const saleItems = itemsBySale.get(item.sale_id) || [];
+    saleItems.push(item);
+    itemsBySale.set(item.sale_id, saleItems);
+  }
+  for (const payment of payments) {
+    const salePayments = paymentsBySale.get(payment.sale_id) || [];
+    salePayments.push(payment);
+    paymentsBySale.set(payment.sale_id, salePayments);
+  }
   for (const sale of sales) {
-    sale.items = await db.getAllAsync(
-      "SELECT * FROM sale_items WHERE sale_id = ? ORDER BY rowid",
-      sale.id,
-    );
-    sale.payments = await db.getAllAsync(
-      "SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY paid_at, rowid",
-      sale.id,
-    );
+    sale.items = itemsBySale.get(sale.id) || [];
+    sale.payments = paymentsBySale.get(sale.id) || [];
   }
   return sales;
+}
+
+export async function readDueSales(shopId) {
+  const db = await getDatabase();
+  const sales = await db.getAllAsync(
+    "SELECT * FROM sales WHERE shop_id = ? AND outstanding_amount > 0 ORDER BY created_at DESC",
+    shopId,
+  );
+  const payments = await db.getAllAsync(
+    `SELECT p.* FROM sale_payments p
+     JOIN sales s ON s.id = p.sale_id
+     WHERE s.shop_id = ? AND s.outstanding_amount > 0
+     ORDER BY p.paid_at, p.rowid`,
+    shopId,
+  );
+  const paymentsBySale = new Map();
+  for (const payment of payments) {
+    const salePayments = paymentsBySale.get(payment.sale_id) || [];
+    salePayments.push(payment);
+    paymentsBySale.set(payment.sale_id, salePayments);
+  }
+  return sales.map((sale) => ({
+    ...sale,
+    payments: paymentsBySale.get(sale.id) || [],
+  }));
 }
 
 export async function saveProductLocal(shopId, values, productId, expectedVersion = null) {
@@ -422,7 +471,17 @@ export async function archiveProductLocal(shopId, productId, operationId) {
   });
 }
 
-export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceived, discount = 0, tax = 0, customerName = "Walk-in Customer") {
+export async function recordSaleLocal(
+  shopId,
+  cart,
+  paymentMethod,
+  amountReceived,
+  discount = 0,
+  tax = 0,
+  customerName = "Walk-in Customer",
+  customerPhone = "",
+  customerPhotoUri = null,
+) {
   const db = await getDatabase();
   const saleId = cart.requestId;
   const now = new Date().toISOString();
@@ -456,15 +515,22 @@ export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceive
 
     const invoiceNo = `LOCAL-${saleId.slice(-8).toUpperCase()}`;
     const paidAmount = Math.min(amountReceived, total);
+    const savedCustomerName = String(customerName || "").trim();
+    const savedCustomerPhone = String(customerPhone || "").trim();
+    if (paidAmount < total && (!savedCustomerName || !savedCustomerPhone)) {
+      throw new Error("Customer name and phone number are required when a balance is due.");
+    }
     await db.runAsync(
       `INSERT INTO sales
-        (id, shop_id, invoice_no, customer_name, subtotal, discount, tax, total, amount_received,
-         change_due, outstanding_amount, payment_method, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
+        (id, shop_id, invoice_no, customer_name, customer_phone, customer_photo_uri, subtotal,
+         discount, tax, total, amount_received, change_due, outstanding_amount, payment_method, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
       saleId,
       shopId,
       invoiceNo,
-      String(customerName || "").trim() || "Walk-in Customer",
+      savedCustomerName || "Walk-in Customer",
+      savedCustomerPhone || null,
+      customerPhotoUri || null,
       subtotal,
       discount,
       tax,

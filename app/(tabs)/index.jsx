@@ -84,19 +84,19 @@ export default function DashboardScreen() {
             <Bell color={colors.ink} size={18} strokeWidth={2} />
           </Pressable>
         </View>
-        <Text style={styles.greeting}>Hello, {String(shop.owner_name || "there").split(" ")[0]}!</Text>
-        <Text style={styles.welcomeCaption}>{dayGreeting} · {shop.name}</Text>
+        <Text style={styles.greeting}>{dayGreeting}, {String(shop.owner_name || "there").split(" ")[0]}</Text>
+        <Text style={styles.welcomeCaption}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</Text>
         <View style={styles.statusLine}><View style={[styles.onlineDot, backupDotStyle]} /><Text style={styles.statusText}>{syncStatus === "syncing" ? "Syncing…" : syncStatus === "error" ? "Backup needs attention" : lastBackupAt ? "Last backup " + new Date(lastBackupAt).toLocaleString() : "Saved on this device"}</Text><Pressable style={styles.backupLink} onPress={() => router.push("/settings")}><Text style={styles.settingsLink}>Backup</Text></Pressable></View>
       </View>
       <View style={styles.todayLine}>
-        <View><Text style={styles.todayTitle}>Today&apos;s overview</Text><Text style={styles.helper}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</Text></View>
+        <View><Text style={styles.todayTitle}>Your shop at a glance</Text><Text style={styles.helper}>A simple look at how today is going</Text></View>
         <Pressable style={styles.newSaleButton} onPress={() => router.push("/(tabs)/sale")}><Plus color="white" size={15} strokeWidth={2.5} /><Text style={styles.newSaleText}>New Sale</Text></Pressable>
       </View>
       <Surface style={styles.salesHero}>
         <View style={styles.heroCopy}>
-          <Text style={styles.heroLabel}>TODAY&apos;S SALES</Text>
+          <Text style={styles.heroLabel}>SALES TODAY</Text>
           <Text style={styles.heroValue}>{money(todaySales)}</Text>
-          <Text style={styles.heroCaption}>{todaySalesList.length} {todaySalesList.length === 1 ? "sale" : "sales"} recorded today</Text>
+          <Text style={styles.heroCaption}>{todaySalesList.length} {todaySalesList.length === 1 ? "bill" : "bills"} today</Text>
         </View>
         {hasSalesInWeek ? <View style={styles.heroBars}>{chartBars.map((height, index) => <View key={`hero-${index}`} style={[styles.heroBar, { height: `${Math.max(14, height)}%` }]} />)}</View> : null}
       </Surface>
@@ -115,42 +115,42 @@ const styles = StyleSheet.create({
   brandMark: { width: 38, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: colors.red, borderRadius: 12 },
   brandGlyph: { color: "white", fontSize: 17, fontWeight: "900" },
   brandCopy: { flex: 1 },
-  brandName: { color: colors.ink, fontSize: 15, fontWeight: "800" },
-  caption: { marginTop: 2, color: colors.muted, fontSize: 9 },
-  notification: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 22 },
-  greeting: { marginTop: 16, color: colors.ink, fontSize: 22, fontWeight: "800" },
-  welcomeCaption: { marginTop: 3, color: colors.muted, fontSize: 11 },
+  brandName: { color: colors.ink, fontSize: 16, fontWeight: "800" },
+  caption: { marginTop: 2, color: colors.muted, fontSize: 11 },
+  notification: { width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 24 },
+  greeting: { marginTop: 18, color: colors.ink, fontSize: 25, fontWeight: "800" },
+  welcomeCaption: { marginTop: 4, color: colors.muted, fontSize: 13 },
   statusLine: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 10 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#35c888" },
   statusSyncing: { backgroundColor: "#d9a03c" },
   statusError: { backgroundColor: colors.red },
   statusLocal: { backgroundColor: "#969ca5" },
-  statusText: { flex: 1, color: colors.muted, fontSize: 10 },
-  settingsLink: { color: colors.red, fontSize: 10, fontWeight: "800" },
+  statusText: { flex: 1, color: colors.muted, fontSize: 12 },
+  settingsLink: { color: colors.red, fontSize: 12, fontWeight: "800" },
   backupLink: { minHeight: 40, justifyContent: "center" },
   todayLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  todayTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-  newSaleButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 11, backgroundColor: colors.red, borderRadius: 8 },
-  newSaleText: { color: "white", fontSize: 10, fontWeight: "800" },
-  salesHero: { minHeight: 108, flexDirection: "row", alignItems: "center", justifyContent: "space-between", overflow: "hidden", marginBottom: 10, padding: 15, backgroundColor: colors.red, borderColor: colors.red },
+  todayTitle: { color: colors.ink, fontSize: 17, fontWeight: "800" },
+  newSaleButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, backgroundColor: colors.red, borderRadius: 12 },
+  newSaleText: { color: "white", fontSize: 12, fontWeight: "800" },
+  salesHero: { minHeight: 132, flexDirection: "row", alignItems: "center", justifyContent: "space-between", overflow: "hidden", marginBottom: 12, padding: 19, backgroundColor: colors.red, borderColor: colors.red },
   heroCopy: { flex: 1 },
-  heroLabel: { color: "#ffe5e4", fontSize: 9, fontWeight: "800", letterSpacing: 0.6 },
-  heroValue: { marginTop: 7, color: "white", fontSize: 24, fontWeight: "900" },
-  heroCaption: { marginTop: 4, color: "#ffe5e4", fontSize: 9 },
+  heroLabel: { color: "#ffe5e4", fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
+  heroValue: { marginTop: 8, color: "white", fontSize: 30, fontWeight: "900" },
+  heroCaption: { marginTop: 5, color: "#ffe5e4", fontSize: 12 },
   heroBars: { height: 54, width: 100, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 5, marginLeft: 8 },
   heroBar: { flex: 1, minHeight: 7, backgroundColor: "rgba(255,255,255,.35)", borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 },
-  stat: { width: "48.5%", minHeight: 91, padding: 11 },
+  stat: { width: "48.5%", minHeight: 106, padding: 14 },
   statTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  statLabel: { color: colors.muted, fontSize: 10 },
-  statValue: { marginTop: 7, color: colors.ink, fontSize: 18, fontWeight: "800" },
-  statUnavailable: { color: colors.muted, fontSize: 11 },
-  statFoot: { marginTop: 4, color: "#9298a2", fontSize: 9 },
+  statLabel: { color: colors.muted, fontSize: 12 },
+  statValue: { marginTop: 8, color: colors.ink, fontSize: 21, fontWeight: "800" },
+  statUnavailable: { color: colors.muted, fontSize: 12 },
+  statFoot: { marginTop: 5, color: "#78837f", fontSize: 11 },
   chartCard: { marginTop: 10 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { color: colors.ink, fontSize: 12, fontWeight: "800" },
-  helper: { marginTop: 3, color: "#9096a0", fontSize: 9 },
-  chartEmpty: { paddingVertical: 35, color: colors.muted, fontSize: 10, textAlign: "center" },
+  sectionTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+  helper: { marginTop: 4, color: "#78837f", fontSize: 11 },
+  chartEmpty: { paddingVertical: 35, color: colors.muted, fontSize: 12, textAlign: "center" },
   todayPill: { paddingHorizontal: 9, paddingVertical: 6, color: "#747b85", backgroundColor: "#f5f5f6", borderRadius: 6, fontSize: 8 },
   chart: { height: 135, flexDirection: "row", gap: 8, marginTop: 13 },
   axis: { justifyContent: "space-between", paddingBottom: 14, color: "#a1a6ae" },
@@ -170,11 +170,11 @@ const styles = StyleSheet.create({
   productIcon: { width: 31, height: 31, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 8 },
   saleCopy: { flex: 1 },
   amountCopy: { alignItems: "flex-end" },
-  saleId: { color: colors.ink, fontSize: 10, fontWeight: "750" },
-  saleAmount: { color: colors.ink, fontSize: 10, fontWeight: "800" },
+  saleId: { color: colors.ink, fontSize: 12, fontWeight: "750" },
+  saleAmount: { color: colors.ink, fontSize: 12, fontWeight: "800" },
   synced: { color: colors.green },
   pending: { color: colors.amber },
-  empty: { paddingVertical: 18, color: colors.muted, fontSize: 11, lineHeight: 16 },
+  empty: { paddingVertical: 18, color: colors.muted, fontSize: 13, lineHeight: 19 },
   emptyBox: { alignItems: "flex-start" },
   emptyAction: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, backgroundColor: colors.red, borderRadius: 8 },
   productRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 8, borderTopColor: "#eff0f2", borderTopWidth: 1 },

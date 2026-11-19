@@ -8,6 +8,7 @@ import {
   getSetting,
   listConflicts,
   archiveProductLocal,
+  readDueSales,
   readProducts,
   readSales,
   recordSalePaymentLocal,
@@ -26,6 +27,7 @@ export function StoreProvider({ children }) {
   const [shop, setShop] = useState(null);
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
+  const [dueSales, setDueSales] = useState([]);
   const [cart, setCart] = useState([]);
   const [cartNotice, setCartNotice] = useState("");
   const [conflicts, setConflicts] = useState([]);
@@ -42,17 +44,20 @@ export function StoreProvider({ children }) {
     const localShop = await getLocalShop();
     setShop(localShop);
     if (localShop) {
-      const [localProducts, localSales, localConflicts] = await Promise.all([
+      const [localProducts, localSales, localDueSales, localConflicts] = await Promise.all([
         readProducts(localShop.id),
         readSales(localShop.id),
+        readDueSales(localShop.id),
         listConflicts(localShop.id),
       ]);
       setProducts(localProducts);
       setSales(localSales);
+      setDueSales(localDueSales);
       setConflicts(localConflicts);
     } else {
       setProducts([]);
       setSales([]);
+      setDueSales([]);
       setConflicts([]);
     }
     setBackupTime(await getSetting("backup_time", "06:00"));
@@ -190,7 +195,15 @@ export function StoreProvider({ children }) {
     }).filter((item) => item.quantity > 0));
   }, []);
 
-  const completeSale = useCallback(async (cart, paymentMethod, amountReceived, discount = 0, customerName = "Walk-in Customer") => {
+  const completeSale = useCallback(async (
+    cart,
+    paymentMethod,
+    amountReceived,
+    discount = 0,
+    customerName = "Walk-in Customer",
+    customerPhone = "",
+    customerPhotoUri = null,
+  ) => {
     if (!shop) throw new Error("Create your local shop profile first.");
     const sale = await recordSaleLocal(
       shop.id,
@@ -200,6 +213,8 @@ export function StoreProvider({ children }) {
       Number(discount || 0),
       0,
       customerName,
+      customerPhone,
+      customerPhotoUri,
     );
     setCart([]);
     await refresh();
@@ -251,12 +266,12 @@ export function StoreProvider({ children }) {
   }, [refresh]);
 
   const value = useMemo(() => ({
-    ready, shop, products, sales, conflicts, cart, cartNotice, session, cloudConfigured,
+    ready, shop, products, sales, dueSales, conflicts, cart, cartNotice, session, cloudConfigured,
     backupTime, backupInterval, lastBackupAt, syncStatus, syncMessage,
     refresh, createShop, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow,
     updateBackupSchedule, resolveConflict,
   }), [
-    ready, shop, products, sales, conflicts, cart, cartNotice, session, backupTime, backupInterval,
+    ready, shop, products, sales, dueSales, conflicts, cart, cartNotice, session, backupTime, backupInterval,
     lastBackupAt, syncStatus, syncMessage, refresh, createShop, saveProduct, archiveProduct,
     addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow, updateBackupSchedule, resolveConflict,
   ]);

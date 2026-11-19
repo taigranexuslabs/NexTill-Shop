@@ -31,7 +31,7 @@ export default function SetupShop() {
         <View style={styles.brandIcon}><ShoppingBag size={27} color="white" strokeWidth={2.2} /></View>
         <Text style={styles.eyebrow}>NEXtill SHOP</Text>
         <Text style={styles.title}>Set up your shop</Text>
-        <Text style={styles.subtitle}>This profile is saved on this device first. You can connect Supabase backup later.</Text>
+        <Text style={styles.subtitle}>Your shop details are saved on this phone. You can add an online backup later.</Text>
         <View style={styles.form}>
           <Text style={styles.label}>Shop name *</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. NexTill Shop" autoCapitalize="words" accessibilityLabel="Shop name" returnKeyType="next" />

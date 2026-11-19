@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { ArrowLeft, CircleCheck, WalletCards } from "lucide-react-native";
 import { useStore } from "../src/StoreProvider";
@@ -17,18 +17,14 @@ const paymentLabel = (method) => ({
 }[method] || method);
 
 export default function DuePaymentsScreen() {
-  const { sales, recordSalePayment } = useStore();
+  const { dueSales, recordSalePayment } = useStore();
   const [selectedId, setSelectedId] = useState(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const dueSales = useMemo(
-    () => sales.filter((sale) => Number(sale.outstanding_amount) > 0),
-    [sales],
-  );
   const totalDue = dueSales.reduce((sum, sale) => sum + Number(sale.outstanding_amount), 0);
-  const selected = sales.find((sale) => sale.id === selectedId);
+  const selected = dueSales.find((sale) => sale.id === selectedId);
   const parsedAmount = Number(amount);
 
   function openPayment(sale) {
@@ -59,22 +55,25 @@ export default function DuePaymentsScreen() {
   return (
     <AppScreen>
       <ScreenHeader
-        title="Due Payments"
-        subtitle="Outstanding customer balances"
+        title="Customer balances"
+        subtitle="Money customers still owe your shop"
         action={<Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft size={17} color={colors.ink} /></Pressable>}
       />
       <Surface style={styles.summary}>
-        <Text style={styles.summaryLabel}>TOTAL OUTSTANDING</Text>
+        <Text style={styles.summaryLabel}>TOTAL STILL TO COLLECT</Text>
         <Text style={styles.summaryTotal}>{money(totalDue)}</Text>
-        <Text style={styles.summaryDetail}>{dueSales.length} {dueSales.length === 1 ? "unpaid sale" : "unpaid sales"}</Text>
+        <Text style={styles.summaryDetail}>{dueSales.length} {dueSales.length === 1 ? "bill with a balance" : "bills with a balance"}</Text>
       </Surface>
       {dueSales.map((sale) => (
         <Surface key={sale.id} style={styles.saleCard}>
           <View style={styles.saleHeading}>
-            <View style={styles.invoiceMark}><WalletCards size={17} color={colors.red} strokeWidth={2} /></View>
+            {sale.customer_photo_uri
+              ? <Image source={{ uri: sale.customer_photo_uri }} style={styles.customerPhoto} />
+              : <View style={styles.invoiceMark}><WalletCards size={17} color={colors.red} strokeWidth={2} /></View>}
             <View style={styles.saleCopy}>
               <Text style={styles.customer}>{sale.customer_name || "Walk-in Customer"}</Text>
               <Text style={styles.detail}>{sale.invoice_no} · {new Date(sale.created_at).toLocaleDateString()}</Text>
+              {sale.customer_phone ? <Text style={styles.phone}>{sale.customer_phone}</Text> : null}
             </View>
             <Text style={styles.balance}>{money(sale.outstanding_amount)}</Text>
           </View>
@@ -82,16 +81,16 @@ export default function DuePaymentsScreen() {
             <Text style={styles.detail}>Sale {money(sale.total)}</Text>
             <Text style={styles.detail}>Paid {money(Number(sale.total) - Number(sale.outstanding_amount))}</Text>
           </View>
-          <Pressable style={styles.collectButton} onPress={() => openPayment(sale)}>
-            <Text style={styles.collectText}>Record payment</Text>
+          <Pressable style={styles.collectButton} onPress={() => openPayment(sale)} accessibilityRole="button">
+            <Text style={styles.collectText}>Record money received</Text>
           </Pressable>
         </Surface>
       ))}
       {dueSales.length === 0 ? (
         <Surface style={styles.empty}>
           <CircleCheck size={28} color={colors.green} strokeWidth={1.8} />
-          <Text style={styles.emptyTitle}>{sales.length ? "No outstanding balances" : "No sales yet"}</Text>
-          <Text style={styles.detail}>{sales.length ? "Any customer balances will appear here." : "Complete a sale to start tracking payments."}</Text>
+          <Text style={styles.emptyTitle}>No outstanding balances</Text>
+          <Text style={styles.detail}>Any customer balances will appear here after a sale.</Text>
         </Surface>
       ) : null}
       <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={() => setSelectedId(null)}>
@@ -136,22 +135,24 @@ export default function DuePaymentsScreen() {
 
 const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "white", borderRadius: 22, borderWidth: 1, borderColor: colors.line },
-  summary: { marginBottom: 10, padding: 16 },
-  summaryLabel: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
-  summaryTotal: { marginTop: 6, color: colors.red, fontSize: 25, fontWeight: "900" },
-  summaryDetail: { marginTop: 3, color: colors.muted, fontSize: 10 },
-  saleCard: { marginBottom: 9, padding: 12 },
+  summary: { marginBottom: 12, padding: 19, backgroundColor: "#fff8f6", borderColor: "#f0d9d4" },
+  summaryLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
+  summaryTotal: { marginTop: 8, color: colors.red, fontSize: 29, fontWeight: "900" },
+  summaryDetail: { marginTop: 5, color: colors.muted, fontSize: 13 },
+  saleCard: { marginBottom: 11, padding: 15 },
   saleHeading: { flexDirection: "row", alignItems: "center", gap: 9 },
   invoiceMark: { width: 35, height: 35, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
+  customerPhoto: { width: 44, height: 44, resizeMode: "cover", borderRadius: 9 },
   saleCopy: { flex: 1 },
-  customer: { color: colors.ink, fontSize: 12, fontWeight: "800" },
-  detail: { marginTop: 4, color: colors.muted, fontSize: 9 },
-  balance: { color: colors.red, fontSize: 13, fontWeight: "900" },
+  customer: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+  detail: { marginTop: 4, color: colors.muted, fontSize: 11 },
+  phone: { marginTop: 3, color: colors.ink, fontSize: 11 },
+  balance: { color: colors.red, fontSize: 15, fontWeight: "900" },
   paymentSummary: { flexDirection: "row", justifyContent: "space-between", marginTop: 9, paddingTop: 8, borderTopColor: colors.line, borderTopWidth: 1 },
-  collectButton: { minHeight: 40, alignItems: "center", justifyContent: "center", marginTop: 9, backgroundColor: "#fff0ef", borderRadius: 8 },
-  collectText: { color: colors.red, fontSize: 10, fontWeight: "800" },
+  collectButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 11, backgroundColor: "#fff0ef", borderRadius: 12 },
+  collectText: { color: colors.red, fontSize: 13, fontWeight: "800" },
   empty: { alignItems: "center", gap: 7, marginTop: 10, paddingVertical: 22 },
-  emptyTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  emptyTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   backdrop: { flex: 1, justifyContent: "flex-end", padding: 8, backgroundColor: "rgba(14,16,20,.5)" },
   modalFrame: { maxHeight: "90%", overflow: "hidden", backgroundColor: "white", borderRadius: 16 },
   modalContent: { padding: 18, paddingBottom: 26 },

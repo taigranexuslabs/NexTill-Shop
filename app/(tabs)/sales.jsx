@@ -1,13 +1,75 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { ChevronRight, ReceiptText, Search, Store, X } from "lucide-react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ChevronRight, Download, ReceiptText, Search, Share2, Store, X } from "lucide-react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { useStore } from "../../src/StoreProvider";
 import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../../src/components/Screen";
 import { colors } from "../../src/theme";
 
 const money = (value) => `Rs ${Number(value || 0).toLocaleString("en-IN")}`;
 const paymentLabel = (method) => ({ cash: "Cash", esewa: "eSewa", khalti: "Khalti", bank_transfer: "Bank transfer", other: "Other" }[method] || method);
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+}[character]));
+
+function invoiceHtml(sale, shop) {
+  const items = (sale.items || []).map((item) => `
+    <tr>
+      <td>${escapeHtml(item.name_snapshot)}<small>${escapeHtml(item.quantity)} × ${escapeHtml(money(item.unit_price))}</small></td>
+      <td class="amount">${escapeHtml(money(item.line_total))}</td>
+    </tr>`).join("");
+  const payments = (sale.payments || []).map((payment) => `
+    <tr><td>${escapeHtml(new Date(payment.paid_at).toLocaleString())} · ${escapeHtml(paymentLabel(payment.payment_method))}</td>
+    <td class="amount">${escapeHtml(money(payment.amount))}</td></tr>`).join("");
+  const paid = Number(sale.total) - Number(sale.outstanding_amount || 0);
+
+  return `<!doctype html>
+    <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; color: #242832; padding: 24px; font-size: 12px; }
+      header { text-align: center; margin-bottom: 24px; }
+      h1 { font-size: 20px; margin: 0 0 6px; }
+      p { color: #626a75; margin: 4px 0; }
+      .meta { display: flex; justify-content: space-between; gap: 12px; }
+      hr { border: 0; border-top: 1px solid #e4e6e9; margin: 14px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 8px 0; vertical-align: top; }
+      td small { display: block; color: #737b86; margin-top: 4px; }
+      .amount { text-align: right; white-space: nowrap; padding-left: 12px; }
+      .summary td { padding: 5px 0; }
+      .grand-total { font-size: 16px; font-weight: bold; }
+      .due { color: #b5332e; font-weight: bold; }
+    </style></head><body>
+      <header>
+        <h1>${escapeHtml(shop?.name || "NexTill Shop")}</h1>
+        ${shop?.address ? `<p>${escapeHtml(shop.address)}</p>` : ""}
+        ${shop?.phone ? `<p>${escapeHtml(shop.phone)}</p>` : ""}
+      </header>
+      <div class="meta"><strong>${escapeHtml(sale.invoice_no)}</strong><span>${escapeHtml(new Date(sale.created_at).toLocaleString())}</span></div>
+      <p>Customer: ${escapeHtml(sale.customer_name || "Walk-in Customer")}</p>
+      ${sale.customer_phone ? `<p>Phone: ${escapeHtml(sale.customer_phone)}</p>` : ""}
+      <hr>
+      <table>${items}</table><hr>
+      <table class="summary">
+        <tr><td>Subtotal</td><td class="amount">${escapeHtml(money(sale.subtotal))}</td></tr>
+        ${Number(sale.discount) > 0 ? `<tr><td>Discount</td><td class="amount">− ${escapeHtml(money(sale.discount))}</td></tr>` : ""}
+        ${Number(sale.tax) > 0 ? `<tr><td>Tax</td><td class="amount">${escapeHtml(money(sale.tax))}</td></tr>` : ""}
+        <tr class="grand-total"><td>Sale total</td><td class="amount">${escapeHtml(money(sale.total))}</td></tr>
+        <tr><td>Paid so far</td><td class="amount">${escapeHtml(money(paid))}</td></tr>
+        ${Number(sale.outstanding_amount) > 0 ? `<tr class="due"><td>Balance due</td><td class="amount">${escapeHtml(money(sale.outstanding_amount))}</td></tr>` : ""}
+      </table>
+      <p>Initial payment by ${escapeHtml(paymentLabel(sale.payment_method))} · Received ${escapeHtml(money(sale.amount_received))}</p>
+      ${Number(sale.change_due) > 0 ? `<p>Change due ${escapeHtml(money(sale.change_due))}</p>` : ""}
+      ${payments ? `<hr><table>${payments}</table>` : ""}
+    </body></html>`;
+}
 
 export default function SalesScreen() {
   const { sales, shop } = useStore();
@@ -17,6 +79,8 @@ export default function SalesScreen() {
   const [methodFilter, setMethodFilter] = useState("All");
   const [selectedId, setSelectedId] = useState(null);
   const [dismissedSaleId, setDismissedSaleId] = useState(null);
+  const [exportAction, setExportAction] = useState("");
+  const [exportError, setExportError] = useState("");
   const routeSaleId = typeof params.saleId === "string" ? params.saleId : null;
   const activeSaleId = selectedId || (routeSaleId !== dismissedSaleId ? routeSaleId : null);
   const methods = useMemo(() => ["All", ...new Set(sales.map((sale) => sale.payment_method).filter(Boolean))], [sales]);
@@ -41,6 +105,49 @@ export default function SalesScreen() {
   function closeInvoice() {
     setSelectedId(null);
     setDismissedSaleId(routeSaleId);
+    setExportError("");
+  }
+
+  async function exportInvoice(action) {
+    if (!selected || exportAction) return;
+    setExportAction(action);
+    setExportError("");
+    try {
+      const { uri } = await Print.printToFileAsync({ html: invoiceHtml(selected, shop) });
+      const fileName = `${String(selected.invoice_no || "invoice").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+      if (action === "share") {
+        if (!await Sharing.isAvailableAsync()) throw new Error("Sharing is not available on this device.");
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Share ${selected.invoice_no}`,
+          mimeType: "application/pdf",
+          UTI: ".pdf",
+        });
+      } else if (Platform.OS === "android") {
+        const { StorageAccessFramework } = FileSystem;
+        const permission = await StorageAccessFramework.requestDirectoryPermissionsAsync(
+          StorageAccessFramework.getUriForDirectoryInRoot("Download"),
+        );
+        if (!permission.granted) return;
+        const destination = await StorageAccessFramework.createFileAsync(
+          permission.directoryUri,
+          fileName.replace(/\.pdf$/i, ""),
+          "application/pdf",
+        );
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        await StorageAccessFramework.writeAsStringAsync(destination, base64, { encoding: FileSystem.EncodingType.Base64 });
+      } else {
+        if (!await Sharing.isAvailableAsync()) throw new Error("File saving is not available on this device.");
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Save ${selected.invoice_no}`,
+          mimeType: "application/pdf",
+          UTI: ".pdf",
+        });
+      }
+    } catch (reason) {
+      setExportError(reason.message || "Could not export this invoice.");
+    } finally {
+      setExportAction("");
+    }
   }
 
   return (
@@ -66,6 +173,7 @@ export default function SalesScreen() {
                 {shop?.phone ? <Text style={styles.shopContact}>{shop.phone}</Text> : null}
                 <View style={styles.invoiceMeta}><Text style={styles.invoiceNumber}>{selected.invoice_no}</Text><Text style={styles.subtle}>{new Date(selected.created_at).toLocaleString()}</Text></View>
                 <Text style={styles.subtle}>{selected.customer_name || "Walk-in Customer"}</Text>
+                {selected.customer_phone ? <Text style={styles.subtle}>Phone {selected.customer_phone}</Text> : null}
                 <View style={styles.rule} />
                 {(selected.items || []).map((item) => <View key={item.id} style={styles.line}><View style={styles.receiptItem}><Text style={styles.productName}>{item.name_snapshot}</Text><Text style={styles.subtle}>{item.quantity} × {money(item.unit_price)}</Text></View><Text style={styles.total}>{money(item.line_total)}</Text></View>)}
                 <View style={styles.rule} />
@@ -75,11 +183,35 @@ export default function SalesScreen() {
                 <View style={styles.line}><Text style={styles.productName}>Sale total</Text><Text style={styles.modalTotal}>{money(selected.total)}</Text></View>
                 <View style={styles.line}><Text style={styles.productName}>Paid so far</Text><Text style={styles.total}>{money(Number(selected.total) - Number(selected.outstanding_amount || 0))}</Text></View>
                 {Number(selected.outstanding_amount) > 0 ? <View style={styles.line}><Text style={styles.dueStatus}>Balance due</Text><Text style={styles.dueStatus}>{money(selected.outstanding_amount)}</Text></View> : null}
-                <Text style={styles.subtle}>Paid by {paymentLabel(selected.payment_method)} · Received {money(selected.amount_received)}</Text>
+                <Text style={styles.subtle}>Initial payment by {paymentLabel(selected.payment_method)} · Received {money(selected.amount_received)}</Text>
                 {Number(selected.change_due) > 0 ? <Text style={styles.subtle}>Change due {money(selected.change_due)}</Text> : null}
                 {(selected.payments || []).map((payment) => <View key={payment.id} style={styles.paymentRow}><Text style={styles.subtle}>{new Date(payment.paid_at).toLocaleString()} · {paymentLabel(payment.payment_method)}</Text><Text style={styles.total}>{money(payment.amount)}</Text></View>)}
               </>}
             </ScrollView>
+            <View style={styles.exportActions}>
+              {exportError ? <Text style={styles.exportError}>{exportError}</Text> : null}
+              <Text style={styles.exportHint}>Save opens the folder picker on Android or the Files share option on iPhone/iPad.</Text>
+              <View style={styles.exportButtons}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={Boolean(exportAction)}
+                  onPress={() => exportInvoice("download")}
+                  style={[styles.exportButton, styles.saveButton, Boolean(exportAction) && styles.exportDisabled]}
+                >
+                  <Download size={16} color={colors.red} />
+                  <Text style={styles.saveButtonText}>{exportAction === "download" ? "Saving…" : "Save PDF"}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={Boolean(exportAction)}
+                  onPress={() => exportInvoice("share")}
+                  style={[styles.exportButton, styles.shareButton, Boolean(exportAction) && styles.exportDisabled]}
+                >
+                  <Share2 size={16} color="white" />
+                  <Text style={styles.shareButtonText}>{exportAction === "share" ? "Preparing…" : "Share bill"}</Text>
+                </Pressable>
+              </View>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -116,6 +248,16 @@ const styles = StyleSheet.create({
   receiptFrame: { maxHeight: "86%", overflow: "hidden", backgroundColor: "white", borderRadius: 16 },
   receiptScroll: { flexGrow: 0 },
   receipt: { padding: 18, paddingBottom: 30 },
+  exportActions: { paddingHorizontal: 14, paddingBottom: 14, borderTopColor: colors.line, borderTopWidth: 1 },
+  exportHint: { marginTop: 8, color: colors.muted, fontSize: 9, lineHeight: 13 },
+  exportError: { marginTop: 8, color: colors.red, fontSize: 10 },
+  exportButtons: { flexDirection: "row", gap: 8, marginTop: 8 },
+  exportButton: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 8 },
+  saveButton: { backgroundColor: "#fff0ef", borderWidth: 1, borderColor: "#f2c5c3" },
+  shareButton: { backgroundColor: colors.red },
+  saveButtonText: { color: colors.red, fontSize: 11, fontWeight: "800" },
+  shareButtonText: { color: "white", fontSize: 11, fontWeight: "800" },
+  exportDisabled: { opacity: 0.6 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
   modalTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   closeButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: "#f6f7f8", borderRadius: 19 },

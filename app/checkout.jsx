@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { ArrowLeft, Banknote, Building2, CircleCheck, CreditCard, Minus, Plus, Smartphone } from "lucide-react-native";
 import { useStore } from "../src/StoreProvider";
 import { AppScreen, ScreenHeader, Surface, PrimaryButton } from "../src/components/Screen";
+import CustomerFaceCapture from "../src/components/CustomerFaceCapture";
+import { deleteCustomerPhoto } from "../src/lib/customerPhotos";
 import { colors } from "../src/theme";
 
 const money = (value) => `Rs ${Number(value || 0).toLocaleString("en-IN")}`;
@@ -15,6 +17,9 @@ export default function CheckoutScreen() {
   const { cart, changeCartQuantity, completeSale } = useStore();
   const [method, setMethod] = useState("cash");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerPhotoUri, setCustomerPhotoUri] = useState(null);
+  const [showCustomerCamera, setShowCustomerCamera] = useState(false);
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.product.selling_price) * item.quantity, 0), [cart]);
   const [discount, setDiscount] = useState("0");
   const parsedDiscount = Number(discount || 0);
@@ -29,6 +34,18 @@ export default function CheckoutScreen() {
   const parsedReceived = Number(receivedValue);
   const paymentInvalid = !Number.isFinite(parsedReceived) || parsedReceived < 0
     || (method !== "cash" && parsedReceived > total);
+  const needsCustomer = Number.isFinite(parsedReceived) && parsedReceived < total;
+  const customerFieldsInvalid = needsCustomer && (!customerName.trim() || !customerPhone.trim());
+
+  async function clearCustomerPhoto() {
+    if (!customerPhotoUri) return;
+    try {
+      await deleteCustomerPhoto(customerPhotoUri);
+      setCustomerPhotoUri(null);
+    } catch (reason) {
+      setError(reason.message || "Could not remove the customer photo from this device.");
+    }
+  }
 
   async function finishSale() {
     if (discountInvalid) {
@@ -41,15 +58,32 @@ export default function CheckoutScreen() {
         : "Amount paid cannot exceed the sale total.");
       return;
     }
-    if (parsedReceived < total && !customerName.trim()) {
-      setError("Enter the customer name to record an outstanding balance.");
+    if (needsCustomer && (!customerName.trim() || !customerPhone.trim())) {
+      setError("Enter the customer name and phone number to record an outstanding balance.");
       return;
+    }
+    if (!needsCustomer && customerPhotoUri) {
+      try {
+        await deleteCustomerPhoto(customerPhotoUri);
+        setCustomerPhotoUri(null);
+      } catch (reason) {
+        setError(reason.message || "Could not remove the optional customer photo.");
+        return;
+      }
     }
     setBusy(true);
     setError("");
     try {
-      const amountReceived = method === "cash" ? parsedReceived : total;
-      const sale = await completeSale(cart, method, amountReceived, discountAmount, customerName.trim());
+      const amountReceived = parsedReceived;
+      const sale = await completeSale(
+        cart,
+        method,
+        amountReceived,
+        discountAmount,
+        customerName.trim(),
+        customerPhone.trim(),
+        needsCustomer ? customerPhotoUri : null,
+      );
       setCompletedSale(sale);
     } catch (reason) {
       setError(reason.message || "Could not complete the sale.");
@@ -89,13 +123,31 @@ export default function CheckoutScreen() {
         <ScreenHeader title="Checkout" subtitle="Sale and stock changes are saved locally first" action={<Pressable style={styles.backButton} onPress={() => router.back()}><ArrowLeft size={17} color={colors.red} /><Text style={styles.back}>Back</Text></Pressable>} />
         <Surface style={styles.totalCard}><Text style={styles.eyebrow}>TOTAL PAYABLE</Text><Text style={styles.total}>{money(total)}</Text><Text style={styles.subtle}>{cart.reduce((sum, item) => sum + item.quantity, 0)} items · {customerName.trim() || "Walk-in Customer"}</Text></Surface>
         <Surface style={styles.customerCard}>
-          <Text style={styles.inputLabel}>Customer (optional)</Text>
-          <TextInput value={customerName} onChangeText={setCustomerName} style={styles.input} placeholder="Walk-in Customer" maxLength={120} accessibilityLabel="Customer name" returnKeyType="done" />
+          <Text style={styles.inputLabel}>Customer name{needsCustomer ? " *" : " (optional)"}</Text>
+          <TextInput value={customerName} onChangeText={setCustomerName} style={styles.input} placeholder="Walk-in Customer" maxLength={120} accessibilityLabel="Customer name" returnKeyType="next" />
+          <Text style={[styles.inputLabel, styles.phoneLabel]}>Phone number{needsCustomer ? " *" : " (optional)"}</Text>
+          <TextInput value={customerPhone} onChangeText={setCustomerPhone} style={styles.input} placeholder="Customer phone number" maxLength={24} keyboardType="phone-pad" accessibilityLabel="Customer phone number" returnKeyType="done" />
+          {customerFieldsInvalid ? <Text style={styles.error}>Customer name and phone number are required while payment is due.</Text> : null}
         </Surface>
+        {needsCustomer ? <Surface style={styles.customerPhotoCard}>
+          <View style={styles.photoRow}>
+            {customerPhotoUri
+              ? <Image source={{ uri: customerPhotoUri }} style={styles.customerPhoto} />
+              : <View style={styles.photoPlaceholder}><Text style={styles.photoInitial}>{customerName.trim().charAt(0).toUpperCase() || "?"}</Text></View>}
+            <View style={styles.photoCopy}>
+              <Text style={styles.inputLabel}>Customer face photo (optional)</Text>
+              <Text style={styles.subtle}>{customerPhotoUri ? "Photo saved on this device." : "Center one face in the guide for automatic capture."}</Text>
+              <Pressable style={styles.photoAction} onPress={() => setShowCustomerCamera(true)}>
+                <Text style={styles.photoActionText}>{customerPhotoUri ? "Retake photo" : "Take face photo"}</Text>
+              </Pressable>
+            </View>
+            {customerPhotoUri ? <Pressable style={styles.removePhoto} onPress={() => { void clearCustomerPhoto(); }}><Text style={styles.removePhotoText}>Remove</Text></Pressable> : null}
+          </View>
+        </Surface> : null}
         <Surface style={styles.discountCard}>
           <View style={styles.summaryLine}><Text style={styles.subtle}>Subtotal</Text><Text style={styles.lineTotal}>{money(subtotal)}</Text></View>
           <Text style={styles.inputLabel}>Discount (Rs)</Text>
-          <TextInput value={discount} onChangeText={(value) => { setDiscount(value); setReceived(null); }} keyboardType="decimal-pad" style={styles.input} placeholder="0.00" accessibilityLabel="Discount in rupees" />
+          <TextInput value={discount} onChangeText={(value) => { setDiscount(value); setReceived(null); void clearCustomerPhoto(); }} keyboardType="decimal-pad" style={styles.input} placeholder="0.00" accessibilityLabel="Discount in rupees" />
           {discountInvalid ? <Text style={styles.error}>Discount cannot exceed the subtotal.</Text> : null}
         </Surface>
         <Text style={styles.sectionTitle}>Cart items</Text>
@@ -105,7 +157,7 @@ export default function CheckoutScreen() {
         <Text style={styles.paymentHint}>Payment types are recorded here; digital payments are not verified by a provider.</Text>
         <Surface style={styles.cashCard}>
           <Text style={styles.sectionTitle}>Amount paid now</Text>
-          <TextInput value={receivedValue} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount paid now" />
+          <TextInput value={receivedValue} onChangeText={(value) => { setReceived(value); if (Number(value) >= total) void clearCustomerPhoto(); }} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount paid now" />
           {method === "cash" ? <Text style={styles.subtle}>Change due: <Text style={styles.change}>{money(Math.max(0, (Number(receivedValue) || 0) - total))}</Text></Text> : null}
           {parsedReceived < total && Number.isFinite(parsedReceived) && parsedReceived >= 0 ? <Text style={styles.subtle}>Remaining balance: {money(total - parsedReceived)}{customerName.trim() ? ` · ${customerName.trim()}` : ""}</Text> : null}
           {paymentInvalid ? <Text style={styles.error}>{method === "cash" ? "Amount received must be zero or more." : "Amount paid cannot exceed the sale total."}</Text> : null}
@@ -113,8 +165,23 @@ export default function CheckoutScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={styles.actionBar}>
-      <PrimaryButton title={busy ? "Saving sale…" : `Complete Sale · ${money(total)}`} disabled={busy || cart.length === 0 || paymentInvalid || discountInvalid} onPress={finishSale} style={styles.finish} />
+      <PrimaryButton title={busy ? "Saving sale…" : `Complete Sale · ${money(total)}`} disabled={busy || cart.length === 0 || paymentInvalid || discountInvalid || customerFieldsInvalid} onPress={finishSale} style={styles.finish} />
       </View>
+      {showCustomerCamera ? <CustomerFaceCapture
+        onCaptured={async (uri) => {
+          const previousPhotoUri = customerPhotoUri;
+          setCustomerPhotoUri(uri);
+          setShowCustomerCamera(false);
+          if (previousPhotoUri) {
+            try {
+              await deleteCustomerPhoto(previousPhotoUri);
+            } catch (reason) {
+              setError(`New photo saved, but the previous photo could not be removed: ${reason.message || "file cleanup failed."}`);
+            }
+          }
+        }}
+        onCancel={() => setShowCustomerCamera(false)}
+      /> : null}
     </AppScreen>
   );
 }
@@ -141,8 +208,19 @@ const styles = StyleSheet.create({
   totalCard: { padding: 18 },
   discountCard: { marginTop: 10 },
   customerCard: { marginTop: 10 },
+  customerPhotoCard: { marginTop: 10, padding: 11 },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: 9 },
+  customerPhoto: { width: 58, height: 58, resizeMode: "cover", borderRadius: 9 },
+  photoPlaceholder: { width: 58, height: 58, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
+  photoInitial: { color: colors.red, fontSize: 20, fontWeight: "900" },
+  photoCopy: { flex: 1 },
+  photoAction: { minHeight: 34, alignSelf: "flex-start", justifyContent: "center", marginTop: 5, paddingHorizontal: 9, backgroundColor: "#fff0ef", borderRadius: 7 },
+  photoActionText: { color: colors.red, fontSize: 9, fontWeight: "800" },
+  removePhoto: { minHeight: 36, justifyContent: "center", paddingHorizontal: 4 },
+  removePhotoText: { color: colors.muted, fontSize: 8, fontWeight: "700" },
   summaryLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
   inputLabel: { marginBottom: 5, color: colors.ink, fontSize: 10, fontWeight: "700" },
+  phoneLabel: { marginTop: 10 },
   eyebrow: { color: "#8d949e", fontSize: 9, fontWeight: "800", letterSpacing: 1 },
   total: { marginTop: 7, color: colors.ink, fontSize: 29, fontWeight: "900" },
   subtle: { marginTop: 4, color: colors.muted, fontSize: 10 },

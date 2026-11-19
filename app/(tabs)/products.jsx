@@ -263,21 +263,21 @@ export default function ProductsScreen() {
       {showingForm ? (
         <KeyboardAvoidingView style={styles.formScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScreenHeader
-            title={editingProduct ? "Edit Product" : "Add Product"}
-            subtitle={editingProduct ? "Update product details and inventory." : "Add a product to your inventory."}
+            title={editingProduct ? "Edit item" : "Add an item"}
+            subtitle={editingProduct ? "Update its details, price, or stock." : "Add the items you sell in your shop."}
             action={<Pressable style={styles.cancelButton} onPress={() => { setMode(null); setDismissedBarcode(scannedBarcode); setError(""); }}><ArrowLeft size={16} color={colors.red} /><Text style={styles.link}>Back</Text></Pressable>}
           />
           <ScrollView style={styles.formScroll} contentContainerStyle={styles.formScrollContent} keyboardShouldPersistTaps="handled">
             <View style={styles.formStack}>
               {cameraControls}
               <Surface style={styles.formSection}>
-                <SectionHeading icon={Package} title="Product details" subtitle="Name, category, and how you sell it." />
+                <SectionHeading icon={Package} title="Item details" subtitle="What is this item called and how do you sell it?" />
                 <ProductField label="Product name *" value={form.name} onChangeText={(name) => setForm({ ...form, name })} placeholder="e.g. Coca Cola" />
                 <ProductField label="Category" value={form.category} onChangeText={(category) => setForm({ ...form, category })} placeholder="e.g. Drinks or Snacks" />
                 <ProductField label="Unit" value={form.unit} onChangeText={(unit) => setForm({ ...form, unit })} placeholder="e.g. piece, pack, kg" />
               </Surface>
               <Surface style={styles.formSection}>
-                <SectionHeading icon={ScanLine} title="Product codes" subtitle="Find this item quickly with a barcode or SKU." />
+                <SectionHeading icon={ScanLine} title="Item codes (optional)" subtitle="Use a barcode to find this item faster at checkout." />
                 <ProductField label="SKU *" value={form.sku} onChangeText={(sku) => setForm({ ...form, sku })} placeholder="e.g. CC001" autoCapitalize="characters" />
                 <ProductField label="Primary barcode" value={formValues.barcode} onChangeText={(barcode) => { setDismissedBarcode(scannedBarcode); setForm({ ...form, barcode }); }} placeholder="Enter or scan barcode" autoCapitalize="characters" />
                 <Pressable style={styles.scanFieldButton} onPress={startBarcodeCamera}>
@@ -326,12 +326,12 @@ export default function ProductsScreen() {
                 </View>
               </Surface>
               <Surface style={styles.formSection}>
-                <SectionHeading icon={CreditCard} title="Pricing" subtitle="Set your cost and selling price." />
+                <SectionHeading icon={CreditCard} title="Prices" subtitle="Enter what you pay and what you charge." />
                 <ProductField label="Cost price (Rs)" value={form.costPrice} onChangeText={(costPrice) => setForm({ ...form, costPrice })} placeholder="0.00" keyboardType="decimal-pad" />
                 <ProductField label="Selling price (Rs) *" value={form.sellingPrice} onChangeText={(sellingPrice) => setForm({ ...form, sellingPrice })} placeholder="0.00" keyboardType="decimal-pad" />
               </Surface>
               <Surface style={styles.formSection}>
-                <SectionHeading icon={Package} title="Inventory" subtitle="Manage stock and low-stock reminders." />
+                <SectionHeading icon={Package} title="Stock" subtitle="How many do you have? We can remind you when low." />
                 <ProductField label={editingProduct ? "Current stock" : "Opening stock"} value={form.stockQty} onChangeText={editingProduct ? () => {} : (stockQty) => setForm({ ...form, stockQty })} placeholder="0" keyboardType="decimal-pad" editable={!editingProduct} />
                 <ProductField label="Low stock alert" value={form.lowStockThreshold} onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })} placeholder="5" keyboardType="decimal-pad" />
               </Surface>
@@ -350,13 +350,13 @@ export default function ProductsScreen() {
         </KeyboardAvoidingView>
       ) : (
         <>
-          <ScreenHeader title="Products" subtitle={`${products.length} products · stored on this device`} action={<Pressable style={styles.addButton} onPress={() => { setForm(blankForm()); setDismissedBarcode(scannedBarcode); setMode("new"); }}><Plus size={15} color="white" strokeWidth={2.5} /><Text style={styles.addText}>Add</Text></Pressable>} />
-          <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={query} onChangeText={setQuery} style={styles.search} placeholder="Search name, SKU or barcode" accessibilityLabel="Search products" returnKeyType="search" /></View>
+          <ScreenHeader title="Stock" subtitle={`${products.length} items in your shop`} action={<Pressable style={styles.addButton} onPress={() => { setForm(blankForm()); setDismissedBarcode(scannedBarcode); setMode("new"); }}><Plus size={18} color="white" strokeWidth={2.5} /><Text style={styles.addText}>Add item</Text></Pressable>} />
+          <View style={styles.searchBox}><Search size={18} color="#78837f" strokeWidth={2} /><TextInput value={query} onChangeText={setQuery} style={styles.search} placeholder="Find an item by name or code" accessibilityLabel="Search products" returnKeyType="search" /></View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroller} contentContainerStyle={styles.categoryContent}>
             {categories.map((category) => <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.categoryChip, category === selectedCategory && styles.categoryChipActive]}><Text style={[styles.categoryChipText, category === selectedCategory && styles.categoryChipTextActive]}>{category}</Text></Pressable>)}
           </ScrollView>
           <View style={styles.filterRow}>
-            <View style={styles.stockFilters}>{["All", "Low", "Out"].map((filter) => <Pressable key={filter} onPress={() => setStockFilter(filter)} style={[styles.stockFilter, stockFilter === filter && styles.stockFilterActive]}><Text style={[styles.stockFilterText, stockFilter === filter && styles.stockFilterTextActive]}>{filter}</Text></Pressable>)}</View>
+            <View style={styles.stockFilters}>{[["All", "All stock"], ["Low", "Running low"], ["Out", "Out of stock"]].map(([filter, label]) => <Pressable key={filter} onPress={() => setStockFilter(filter)} style={[styles.stockFilter, stockFilter === filter && styles.stockFilterActive]}><Text style={[styles.stockFilterText, stockFilter === filter && styles.stockFilterTextActive]}>{label}</Text></Pressable>)}</View>
             <Text style={styles.filterText}>{filtered.length} items</Text>
           </View>
           <View style={styles.productGrid}>{filtered.map((product) => {
@@ -377,31 +377,31 @@ export default function ProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  addButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 10, backgroundColor: colors.red, borderRadius: 8 },
-  addText: { color: "white", fontSize: 11, fontWeight: "800" },
-  searchBox: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 9 },
-  search: { flex: 1, color: colors.ink, fontSize: 12 },
+  addButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 13, backgroundColor: colors.red, borderRadius: 12 },
+  addText: { color: "white", fontSize: 12, fontWeight: "800" },
+  searchBox: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 13 },
+  search: { flex: 1, color: colors.ink, fontSize: 14 },
   categoryScroller: { flexGrow: 0, marginTop: 10 },
   categoryContent: { gap: 6, paddingVertical: 2 },
-  categoryChip: { minHeight: 40, justifyContent: "center", paddingHorizontal: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 20 },
+  categoryChip: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 21 },
   categoryChipActive: { backgroundColor: colors.red, borderColor: colors.red },
-  categoryChipText: { color: "#707782", fontSize: 10 },
+  categoryChipText: { color: "#626f6b", fontSize: 12 },
   categoryChipTextActive: { color: "white", fontWeight: "800" },
   filterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, marginBottom: 8 },
-  filterText: { color: "#999fa8", fontSize: 8, fontWeight: "800", letterSpacing: 0.8 },
-  stockFilters: { flexDirection: "row", gap: 5 },
-  stockFilter: { minHeight: 36, justifyContent: "center", paddingHorizontal: 9, backgroundColor: "white", borderRadius: 16 },
+  filterText: { color: "#78837f", fontSize: 11, fontWeight: "700" },
+  stockFilters: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  stockFilter: { minHeight: 40, justifyContent: "center", paddingHorizontal: 11, backgroundColor: "white", borderRadius: 20 },
   stockFilterActive: { backgroundColor: "#fff0ef" },
-  stockFilterText: { color: "#858c95", fontSize: 8, fontWeight: "700" },
+  stockFilterText: { color: "#626f6b", fontSize: 11, fontWeight: "700" },
   stockFilterTextActive: { color: colors.red },
   productGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 9 },
-  productCard: { width: "48.5%", minHeight: 156, padding: 9, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 11 },
-  productArt: { height: 79, alignItems: "center", justifyContent: "center", marginBottom: 8, overflow: "hidden", backgroundColor: "#fff0ef", borderRadius: 8 },
-  productName: { color: colors.ink, fontSize: 12, fontWeight: "800" },
-  muted: { marginTop: 3, color: "#8e949e", fontSize: 9 },
-  price: { marginTop: 3, color: colors.red, fontSize: 11, fontWeight: "800" },
+  productCard: { width: "48.5%", minHeight: 176, padding: 11, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 15 },
+  productArt: { height: 90, alignItems: "center", justifyContent: "center", marginBottom: 9, overflow: "hidden", backgroundColor: "#fff0ef", borderRadius: 10 },
+  productName: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+  muted: { marginTop: 4, color: "#78837f", fontSize: 11 },
+  price: { marginTop: 4, color: colors.red, fontSize: 13, fontWeight: "800" },
   productMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, marginTop: 4 },
-  stockBadge: { color: colors.green, fontSize: 8, fontWeight: "700" },
+  stockBadge: { color: colors.green, fontSize: 10, fontWeight: "700" },
   lowStockBadge: { color: colors.amber },
   outStockBadge: { color: colors.red },
   productImage: { width: "100%", height: "100%", resizeMode: "contain" },
@@ -410,12 +410,12 @@ const styles = StyleSheet.create({
   formScroll: { flex: 1 },
   formScrollContent: { gap: 10, paddingBottom: 12 },
   formStack: { gap: 10 },
-  formSection: { padding: 14 },
+  formSection: { padding: 17 },
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
-  sectionIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 9 },
+  sectionIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 12 },
   sectionCopy: { flex: 1 },
-  sectionTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  sectionSubtitle: { marginTop: 3, color: colors.muted, fontSize: 9, lineHeight: 13 },
+  sectionTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
+  sectionSubtitle: { marginTop: 4, color: colors.muted, fontSize: 12, lineHeight: 17 },
   formAction: { gap: 7, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
   cancelButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 5 },
   photoCard: { gap: 10, marginBottom: 0, padding: 14, backgroundColor: "white", borderColor: colors.line },
@@ -423,8 +423,8 @@ const styles = StyleSheet.create({
   photoPreview: { width: 78, height: 78, resizeMode: "cover", backgroundColor: "#f8f8f9", borderRadius: 10 },
   photoPlaceholder: { width: 78, height: 78, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ef", borderRadius: 10 },
   photoCopy: { flex: 1, alignItems: "flex-start" },
-  photoTitle: { color: colors.ink, fontSize: 12, fontWeight: "800" },
-  photoHint: { marginTop: 4, color: colors.muted, fontSize: 9, lineHeight: 13 },
+  photoTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+  photoHint: { marginTop: 4, color: colors.muted, fontSize: 12, lineHeight: 17 },
   secondaryButton: { minHeight: 34, justifyContent: "center", marginTop: 8, paddingHorizontal: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 7 },
   secondaryButtonText: { color: colors.red, fontSize: 10, fontWeight: "800" },
   cameraPanel: { gap: 8 },

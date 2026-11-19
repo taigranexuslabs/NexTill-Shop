@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { StoreProvider } from "../src/StoreProvider";
 import { registerBackupTask } from "../src/lib/backgroundSync";
+import { colors } from "../src/theme";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -13,8 +14,8 @@ export default function RootLayout() {
 
   return (
     <StoreProvider>
-      <StatusBar style="light" backgroundColor="#191a1f" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#f4f5f7" } }}>
+      <StatusBar style="dark" backgroundColor={colors.background} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="reports" />
         <Stack.Screen name="expenses" />

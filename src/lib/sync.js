@@ -401,11 +401,15 @@ async function performSync() {
     payments.push(payment);
     paymentsBySale.set(payment.sale_id, payments);
   }
-  const salesWithItems = sales.map((sale) => ({
-    ...sale,
-    items: itemsBySale.get(sale.id) || [],
-    payments: paymentsBySale.get(sale.id) || [],
-  }));
+  const salesWithItems = sales.map((sale) => {
+    const saleSnapshot = { ...sale };
+    delete saleSnapshot.customer_photo_uri;
+    return {
+      ...saleSnapshot,
+      items: itemsBySale.get(sale.id) || [],
+      payments: paymentsBySale.get(sale.id) || [],
+    };
+  });
   const pending = await db.getAllAsync("SELECT * FROM outbox WHERE shop_id = ?", shop.id);
   const settings = await db.getAllAsync("SELECT key, value FROM local_settings");
   const payload = { schemaVersion: 2, shop, products, sales: salesWithItems, pending, settings, backedUpAt: new Date().toISOString() };
