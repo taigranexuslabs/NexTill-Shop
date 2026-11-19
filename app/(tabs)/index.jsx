@@ -6,6 +6,7 @@ import { AppScreen, Surface } from "../../src/components/Screen";
 import { colors } from "../../src/theme";
 
 const money = (value) => `Rs ${Number(value || 0).toLocaleString("en-IN")}`;
+const chartValue = (value) => value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k` : String(Math.round(value));
 
 export default function DashboardScreen() {
   const { ready, shop, products, sales, syncStatus, lastBackupAt } = useStore();
@@ -62,6 +63,13 @@ export default function DashboardScreen() {
     ["Estimated Profit", costDataMissing ? "Unavailable" : money(todayProfit), TrendingUp],
     ["Low Stock", String(lowStock.length), TriangleAlert],
   ];
+  const backupDotStyle = syncStatus === "error"
+    ? styles.statusError
+    : syncStatus === "syncing"
+      ? styles.statusSyncing
+      : syncStatus === "synced" || lastBackupAt
+        ? styles.onlineDot
+        : styles.statusLocal;
 
   return (
     <AppScreen>
@@ -78,7 +86,7 @@ export default function DashboardScreen() {
         </View>
         <Text style={styles.greeting}>Hello, {String(shop.owner_name || "there").split(" ")[0]}!</Text>
         <Text style={styles.welcomeCaption}>{dayGreeting} · {shop.name}</Text>
-        <View style={styles.statusLine}><View style={styles.onlineDot} /><Text style={styles.statusText}>{syncStatus === "syncing" ? "Syncing…" : lastBackupAt ? "Last backup " + new Date(lastBackupAt).toLocaleString() : "Saved on this device"}</Text><Pressable onPress={() => router.push("/(tabs)/settings")}><Text style={styles.settingsLink}>Backup</Text></Pressable></View>
+        <View style={styles.statusLine}><View style={[styles.onlineDot, backupDotStyle]} /><Text style={styles.statusText}>{syncStatus === "syncing" ? "Syncing…" : syncStatus === "error" ? "Backup needs attention" : lastBackupAt ? "Last backup " + new Date(lastBackupAt).toLocaleString() : "Saved on this device"}</Text><Pressable style={styles.backupLink} onPress={() => router.push("/(tabs)/settings")}><Text style={styles.settingsLink}>Backup</Text></Pressable></View>
       </View>
       <View style={styles.todayLine}>
         <View><Text style={styles.todayTitle}>Today&apos;s overview</Text><Text style={styles.helper}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</Text></View>
@@ -93,7 +101,7 @@ export default function DashboardScreen() {
         {hasSalesInWeek ? <View style={styles.heroBars}>{chartBars.map((height, index) => <View key={`hero-${index}`} style={[styles.heroBar, { height: `${Math.max(14, height)}%` }]} />)}</View> : null}
       </Surface>
       <View style={styles.statsGrid}>{stats.map(([label, value, Icon]) => <Surface key={label} style={styles.stat}><View style={styles.statTop}><Text style={styles.statLabel}>{label}</Text><Icon size={16} color={colors.red} strokeWidth={2} /></View><Text style={[styles.statValue, label === "Estimated Profit" && costDataMissing && styles.statUnavailable]}>{value}</Text><Text style={styles.statFoot}>{label === "Low Stock" ? "Restock needed" : label === "Total Products" ? "In inventory" : label === "Bills Today" ? "Completed today" : costDataMissing ? "Add purchase prices to calculate" : "Based on recorded sales"}</Text></Surface>)}</View>
-      <Surface style={styles.chartCard}><View style={styles.rowBetween}><View><Text style={styles.sectionTitle}>Sales overview</Text><Text style={styles.helper}>Recorded sales for the last 7 days</Text></View><Text style={styles.todayPill}>7D</Text></View>{hasSalesInWeek ? <View style={styles.chart}><View style={styles.axis}><Text>{Math.round(maxChartSales / 1000)}k</Text><Text>{Math.round(maxChartSales * .66 / 1000)}k</Text><Text>{Math.round(maxChartSales * .33 / 1000)}k</Text><Text>0</Text></View><View style={styles.bars}>{chartBars.map((height, index) => <View style={styles.barGroup} key={`${chartDays[index].label}-${index}`}><View style={[styles.bar, index === 6 && styles.barActive, { height: `${height}%` }]} /><Text style={styles.day}>{chartDays[index].label}</Text></View>)}</View></View> : <Text style={styles.chartEmpty}>No sales recorded in the last 7 days.</Text>}</Surface>
+      <Surface style={styles.chartCard}><View style={styles.rowBetween}><View><Text style={styles.sectionTitle}>Sales overview</Text><Text style={styles.helper}>Recorded sales for the last 7 days</Text></View><Text style={styles.todayPill}>7D</Text></View>{hasSalesInWeek ? <View style={styles.chart}><View style={styles.axis}><Text style={styles.axisLabel}>{chartValue(maxChartSales)}</Text><Text style={styles.axisLabel}>{chartValue(maxChartSales * .66)}</Text><Text style={styles.axisLabel}>{chartValue(maxChartSales * .33)}</Text><Text style={styles.axisLabel}>0</Text></View><View style={styles.bars}>{chartBars.map((height, index) => <View style={styles.barGroup} key={`${chartDays[index].label}-${index}`}><View style={[styles.bar, index === 6 && styles.barActive, { height: `${height}%` }]} /><Text style={styles.day}>{chartDays[index].label}</Text></View>)}</View></View> : <Text style={styles.chartEmpty}>No sales recorded in the last 7 days.</Text>}</Surface>
       <Surface style={styles.listCard}><View style={styles.rowBetween}><View><Text style={styles.sectionTitle}>Best-selling products</Text><Text style={styles.helper}>Ranked by units sold</Text></View></View>{bestSellingProducts.map((item, index) => <View key={`${item.name}-${index}`} style={styles.productRow}><View style={styles.rank}><Text style={styles.rankText}>{index + 1}</Text></View><View style={styles.saleCopy}><Text style={styles.saleId}>{item.name}</Text><Text style={styles.helper}>{item.quantity} sold</Text></View><Text style={styles.saleAmount}>{money(item.revenue)}</Text></View>)}{bestSellingProducts.length === 0 && <Text style={styles.empty}>Product rankings will appear after your first sale.</Text>}</Surface>
       <Surface style={styles.listCard}><View style={styles.rowBetween}><View><Text style={styles.sectionTitle}>Recent sales</Text><Text style={styles.helper}>Latest transactions stored on this device</Text></View><Pressable style={styles.linkButton} onPress={() => router.push("/(tabs)/sales")}><Text style={styles.link}>View all</Text><ChevronRight size={14} color={colors.red} /></Pressable></View>{sales.slice(0, 4).map((sale) => <Pressable key={sale.id} style={styles.saleRow} onPress={() => router.push({ pathname: "/(tabs)/sales", params: { saleId: sale.id } })}><View style={styles.invoiceIcon}><ReceiptText color={colors.red} size={16} strokeWidth={2} /></View><View style={styles.saleCopy}><Text style={styles.saleId}>{sale.invoice_no}</Text><Text style={styles.helper}>{new Date(sale.created_at).toLocaleString()}</Text></View><View style={styles.amountCopy}><Text style={styles.saleAmount}>{money(sale.total)}</Text><Text style={[styles.helper, sale.status === "synced" ? styles.synced : styles.pending]}>{sale.status === "synced" ? "Backed up" : "Pending backup"}</Text></View></Pressable>)}{sales.length === 0 && <View style={styles.emptyBox}><Text style={styles.empty}>No sales yet. Start your first sale when you’re ready.</Text><Pressable style={styles.emptyAction} onPress={() => router.push("/(tabs)/sale")}><Text style={styles.newSaleText}>Create first sale</Text><ChevronRight color="white" size={16} /></Pressable></View>}</Surface>
       <Surface style={styles.listCard}><View style={styles.rowBetween}><View><Text style={styles.sectionTitle}>Low stock</Text><Text style={styles.helper}>Items at or below their alert level</Text></View><Pressable style={styles.linkButton} onPress={() => router.push("/(tabs)/products")}><Text style={styles.link}>Inventory</Text><ChevronRight size={14} color={colors.red} /></Pressable></View>{lowStock.slice(0, 4).map((product) => <View key={product.id} style={styles.productRow}><View style={styles.productIcon}><Package color={colors.red} size={17} strokeWidth={2} /></View><View style={styles.saleCopy}><Text style={styles.saleId}>{product.name}</Text><Text style={styles.helper}>{product.category} · {product.sku}</Text></View><Text style={styles.lowQty}>{product.stock_qty} left</Text></View>)}{lowStock.length === 0 && <Text style={styles.empty}>All products are above their low-stock threshold.</Text>}</Surface>
@@ -114,8 +122,12 @@ const styles = StyleSheet.create({
   welcomeCaption: { marginTop: 3, color: colors.muted, fontSize: 11 },
   statusLine: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 10 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#35c888" },
+  statusSyncing: { backgroundColor: "#d9a03c" },
+  statusError: { backgroundColor: colors.red },
+  statusLocal: { backgroundColor: "#969ca5" },
   statusText: { flex: 1, color: colors.muted, fontSize: 10 },
   settingsLink: { color: colors.red, fontSize: 10, fontWeight: "800" },
+  backupLink: { minHeight: 40, justifyContent: "center" },
   todayLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   todayTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   newSaleButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 11, backgroundColor: colors.red, borderRadius: 8 },
@@ -142,6 +154,7 @@ const styles = StyleSheet.create({
   todayPill: { paddingHorizontal: 9, paddingVertical: 6, color: "#747b85", backgroundColor: "#f5f5f6", borderRadius: 6, fontSize: 8 },
   chart: { height: 135, flexDirection: "row", gap: 8, marginTop: 13 },
   axis: { justifyContent: "space-between", paddingBottom: 14, color: "#a1a6ae" },
+  axisLabel: { color: "#a1a6ae", fontSize: 9 },
   bars: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "stretch", borderBottomColor: colors.line, borderBottomWidth: 1 },
   barGroup: { width: "10%", alignItems: "center", justifyContent: "flex-end", gap: 5 },
   bar: { width: 16, maxHeight: "95%", backgroundColor: "#ffc9c6", borderRadius: 4 },

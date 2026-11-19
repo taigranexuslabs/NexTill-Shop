@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ChevronRight, ReceiptText, Search, Store, X } from "lucide-react-native";
 import { useStore } from "../../src/StoreProvider";
@@ -15,11 +15,11 @@ export default function SalesScreen() {
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("All");
   const [methodFilter, setMethodFilter] = useState("All");
-  const [selectedId, setSelectedId] = useState(typeof params.saleId === "string" ? params.saleId : null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [dismissedSaleId, setDismissedSaleId] = useState(null);
+  const routeSaleId = typeof params.saleId === "string" ? params.saleId : null;
+  const activeSaleId = selectedId || (routeSaleId !== dismissedSaleId ? routeSaleId : null);
   const methods = useMemo(() => ["All", ...new Set(sales.map((sale) => sale.payment_method).filter(Boolean))], [sales]);
-  useEffect(() => {
-    setSelectedId(typeof params.saleId === "string" ? params.saleId : null);
-  }, [params.saleId]);
   const list = useMemo(() => sales.filter((sale) => {
     const matchesSearch = `${sale.invoice_no} ${sale.customer_name || ""}`.toLowerCase().includes(search.toLowerCase());
     const matchesMethod = methodFilter === "All" || sale.payment_method === methodFilter;
@@ -36,7 +36,12 @@ export default function SalesScreen() {
       && (dateFilter === "Today" ? createdAt < rangeEnd : createdAt <= now));
     return matchesSearch && matchesMethod && matchesDate;
   }), [sales, search, dateFilter, methodFilter]);
-  const selected = sales.find((sale) => sale.id === selectedId);
+  const selected = sales.find((sale) => sale.id === activeSaleId);
+
+  function closeInvoice() {
+    setSelectedId(null);
+    setDismissedSaleId(routeSaleId);
+  }
 
   return (
     <AppScreen>
@@ -47,13 +52,13 @@ export default function SalesScreen() {
       <Text style={styles.listMeta}>{list.length} transactions · Saved locally and backed up when online</Text>
       {list.map((sale) => <Pressable key={sale.id} onPress={() => setSelectedId(sale.id)} style={styles.saleRow}><View style={styles.icon}><ReceiptText size={17} color={colors.red} strokeWidth={1.9} /></View><View style={styles.saleDetail}><Text style={styles.invoice}>{sale.invoice_no}</Text><Text style={styles.subtle}>{new Date(sale.created_at).toLocaleString()} · {sale.customer_name || "Walk-in Customer"}</Text><Text style={[styles.status, sale.status === "synced" ? styles.synced : styles.pending]}>{sale.status === "synced" ? "Backed up" : "Pending backup"}</Text></View><View style={styles.amount}><Text style={styles.total}>{money(sale.total)}</Text><Text style={styles.subtle}>{paymentLabel(sale.payment_method)}</Text></View><ChevronRight size={17} color="#9da3ab" /></Pressable>)}
       {list.length === 0 && <Surface style={styles.empty}><Text style={styles.emptyTitle}>{sales.length ? "No sales match these filters" : "No sales yet"}</Text><Text style={styles.subtle}>{sales.length ? "Try another date range or payment method." : "Complete a sale to create your first invoice."}</Text>{sales.length ? <Pressable style={styles.clearFilters} onPress={() => { setSearch(""); setDateFilter("All"); setMethodFilter("All"); }}><Text style={styles.clearFiltersText}>Clear filters</Text></Pressable> : <PrimaryButton title="Start a sale" onPress={() => router.push("/(tabs)/sale")} />}</Surface>}
-      <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={() => setSelectedId(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setSelectedId(null)}>
+      <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={closeInvoice}>
+        <Pressable style={styles.backdrop} onPress={closeInvoice}>
           <Pressable style={styles.receiptFrame} onPress={(event) => event.stopPropagation()}>
             <ScrollView style={styles.receiptScroll} contentContainerStyle={styles.receipt} keyboardShouldPersistTaps="handled">
               <View style={styles.modalHeader}>
                 <View><Text style={styles.modalTitle}>Invoice</Text><Text style={styles.subtle}>Sale receipt</Text></View>
-                <Pressable style={styles.closeButton} onPress={() => setSelectedId(null)} accessibilityLabel="Close invoice"><X size={18} color={colors.ink} /></Pressable>
+                <Pressable style={styles.closeButton} onPress={closeInvoice} accessibilityLabel="Close invoice"><X size={18} color={colors.ink} /></Pressable>
               </View>
               {selected && <>
                 <View style={styles.receiptBrand}><View style={styles.storeMark}><Store size={18} color="white" strokeWidth={2} /></View><Text style={styles.shopName}>{shop?.name || "NexTill Shop"}</Text></View>

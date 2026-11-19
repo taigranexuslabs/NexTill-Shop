@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { ArrowLeft, Banknote, Building2, CircleCheck, CreditCard, Minus, Plus, Smartphone } from "lucide-react-native";
@@ -20,16 +20,13 @@ export default function CheckoutScreen() {
   const discountInvalid = !Number.isFinite(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > subtotal;
   const discountAmount = Number.isFinite(parsedDiscount) ? parsedDiscount : 0;
   const total = Math.max(0, subtotal - discountAmount);
-  const [received, setReceived] = useState(String(total));
+  const [received, setReceived] = useState(null);
+  const receivedValue = received ?? String(total);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [completedSale, setCompletedSale] = useState(null);
-  const parsedReceived = Number(received);
+  const parsedReceived = Number(receivedValue);
   const cashInvalid = method === "cash" && (!Number.isFinite(parsedReceived) || parsedReceived < total);
-
-  useEffect(() => {
-    setReceived(String(total));
-  }, [total]);
 
   async function finishSale() {
     if (discountInvalid) {
@@ -82,15 +79,15 @@ export default function CheckoutScreen() {
         <Surface style={styles.discountCard}>
           <View style={styles.summaryLine}><Text style={styles.subtle}>Subtotal</Text><Text style={styles.lineTotal}>{money(subtotal)}</Text></View>
           <Text style={styles.inputLabel}>Discount (Rs)</Text>
-          <TextInput value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" style={styles.input} placeholder="0.00" accessibilityLabel="Discount in rupees" />
+          <TextInput value={discount} onChangeText={(value) => { setDiscount(value); setReceived(null); }} keyboardType="decimal-pad" style={styles.input} placeholder="0.00" accessibilityLabel="Discount in rupees" />
           {discountInvalid ? <Text style={styles.error}>Discount cannot exceed the subtotal.</Text> : null}
         </Surface>
         <Text style={styles.sectionTitle}>Cart items</Text>
-        {cart.map((item) => <Surface key={item.product.id} style={styles.cartLine}><View style={styles.productCopy}><Text style={styles.productName}>{item.product.name}</Text><Text style={styles.subtle}>{money(item.product.selling_price)} each</Text></View><View style={styles.qty}><Pressable accessibilityLabel={`Remove one ${item.product.name}`} onPress={() => changeCartQuantity(item.product.id, -1)} style={styles.qtyAction}><Minus size={14} color={colors.red} strokeWidth={2} /></Pressable><Text style={styles.qtyText}>{item.quantity}</Text><Pressable accessibilityLabel={`Add one ${item.product.name}`} onPress={() => changeCartQuantity(item.product.id, 1)} style={styles.qtyAction}><Plus size={14} color={colors.red} strokeWidth={2} /></Pressable></View><Text style={styles.lineTotal}>{money(item.quantity * item.product.selling_price)}</Text></Surface>)}
+        {cart.map((item) => <Surface key={item.product.id} style={styles.cartLine}><View style={styles.productCopy}><Text style={styles.productName}>{item.product.name}</Text><Text style={styles.subtle}>{money(item.product.selling_price)} each</Text></View><View style={styles.qty}><Pressable accessibilityLabel={`Remove one ${item.product.name}`} onPress={() => { changeCartQuantity(item.product.id, -1); setReceived(null); }} style={styles.qtyAction}><Minus size={14} color={colors.red} strokeWidth={2} /></Pressable><Text style={styles.qtyText}>{item.quantity}</Text><Pressable accessibilityLabel={`Add one ${item.product.name}`} onPress={() => { changeCartQuantity(item.product.id, 1); setReceived(null); }} style={styles.qtyAction}><Plus size={14} color={colors.red} strokeWidth={2} /></Pressable></View><Text style={styles.lineTotal}>{money(item.quantity * item.product.selling_price)}</Text></Surface>)}
         <Text style={styles.sectionTitle}>Payment method</Text>
         <View style={styles.methods}>{methods.map((item) => { const Icon = methodIcons[item]; return <Pressable key={item} onPress={() => setMethod(item)} style={[styles.method, method === item && styles.methodActive]}><Icon size={17} color={method === item ? colors.red : colors.muted} strokeWidth={1.9} /><Text style={styles.methodText}>{label(item)}</Text></Pressable>; })}</View>
         <Text style={styles.paymentHint}>Payment types are recorded here; digital payments are not verified by a provider.</Text>
-        {method === "cash" && <Surface style={styles.cashCard}><Text style={styles.sectionTitle}>Amount received</Text><TextInput value={received} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount received" /><Text style={styles.subtle}>Change due: <Text style={styles.change}>{money(Math.max(0, (Number(received) || 0) - total))}</Text></Text>{cashInvalid ? <Text style={styles.error}>Enter at least {money(total)} to complete this sale.</Text> : null}</Surface>}
+        {method === "cash" && <Surface style={styles.cashCard}><Text style={styles.sectionTitle}>Amount received</Text><TextInput value={receivedValue} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount received" /><Text style={styles.subtle}>Change due: <Text style={styles.change}>{money(Math.max(0, (Number(receivedValue) || 0) - total))}</Text></Text>{cashInvalid ? <Text style={styles.error}>Enter at least {money(total)} to complete this sale.</Text> : null}</Surface>}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={styles.actionBar}>
