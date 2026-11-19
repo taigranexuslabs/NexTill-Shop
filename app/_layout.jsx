@@ -16,6 +16,10 @@ export default function RootLayout() {
       <StatusBar style="light" backgroundColor="#191a1f" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#f4f5f7" } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="reports" />
+        <Stack.Screen name="expenses" />
+        <Stack.Screen name="customers" />
+        <Stack.Screen name="staff" />
         <Stack.Screen name="scanner" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="checkout" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       </Stack>

@@ -14,6 +14,7 @@ const methodIcons = { cash: Banknote, esewa: Smartphone, khalti: Smartphone, ban
 export default function CheckoutScreen() {
   const { cart, changeCartQuantity, completeSale } = useStore();
   const [method, setMethod] = useState("cash");
+  const [customerName, setCustomerName] = useState("");
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.product.selling_price) * item.quantity, 0), [cart]);
   const [discount, setDiscount] = useState("0");
   const parsedDiscount = Number(discount || 0);
@@ -41,7 +42,7 @@ export default function CheckoutScreen() {
     setError("");
     try {
       const amountReceived = method === "cash" ? parsedReceived : total;
-      const sale = await completeSale(cart, method, amountReceived, discountAmount);
+      const sale = await completeSale(cart, method, amountReceived, discountAmount, customerName.trim());
       setCompletedSale(sale);
     } catch (reason) {
       setError(reason.message || "Could not complete the sale.");
@@ -75,7 +76,11 @@ export default function CheckoutScreen() {
     <AppScreen scroll={false} contentStyle={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <ScreenHeader title="Checkout" subtitle="Sale and stock changes are saved locally first" action={<Pressable style={styles.backButton} onPress={() => router.back()}><ArrowLeft size={17} color={colors.red} /><Text style={styles.back}>Back</Text></Pressable>} />
-        <Surface style={styles.totalCard}><Text style={styles.eyebrow}>TOTAL PAYABLE</Text><Text style={styles.total}>{money(total)}</Text><Text style={styles.subtle}>{cart.reduce((sum, item) => sum + item.quantity, 0)} items · Walk-in Customer</Text></Surface>
+        <Surface style={styles.totalCard}><Text style={styles.eyebrow}>TOTAL PAYABLE</Text><Text style={styles.total}>{money(total)}</Text><Text style={styles.subtle}>{cart.reduce((sum, item) => sum + item.quantity, 0)} items · {customerName.trim() || "Walk-in Customer"}</Text></Surface>
+        <Surface style={styles.customerCard}>
+          <Text style={styles.inputLabel}>Customer (optional)</Text>
+          <TextInput value={customerName} onChangeText={setCustomerName} style={styles.input} placeholder="Walk-in Customer" maxLength={120} accessibilityLabel="Customer name" returnKeyType="done" />
+        </Surface>
         <Surface style={styles.discountCard}>
           <View style={styles.summaryLine}><Text style={styles.subtle}>Subtotal</Text><Text style={styles.lineTotal}>{money(subtotal)}</Text></View>
           <Text style={styles.inputLabel}>Discount (Rs)</Text>
@@ -116,6 +121,7 @@ const styles = StyleSheet.create({
   back: { color: colors.red, fontSize: 11, fontWeight: "800" },
   totalCard: { padding: 18 },
   discountCard: { marginTop: 10 },
+  customerCard: { marginTop: 10 },
   summaryLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
   inputLabel: { marginBottom: 5, color: colors.ink, fontSize: 10, fontWeight: "700" },
   eyebrow: { color: "#8d949e", fontSize: 9, fontWeight: "800", letterSpacing: 1 },

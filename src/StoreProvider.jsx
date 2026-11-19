@@ -7,6 +7,7 @@ import {
   getLocalShop,
   getSetting,
   listConflicts,
+  archiveProductLocal,
   readProducts,
   readSales,
   recordSaleLocal,
@@ -156,6 +157,12 @@ export function StoreProvider({ children }) {
     await refresh();
   }, [refresh, shop]);
 
+  const archiveProduct = useCallback(async (product) => {
+    if (!shop) throw new Error("Create your local shop profile first.");
+    await archiveProductLocal(shop.id, product.id, Crypto.randomUUID());
+    await refresh();
+  }, [refresh, shop]);
+
   const addToCart = useCallback((product) => {
     if (Number(product.stock_qty) <= 0) {
       const message = "This product is out of stock.";
@@ -182,7 +189,7 @@ export function StoreProvider({ children }) {
     }).filter((item) => item.quantity > 0));
   }, []);
 
-  const completeSale = useCallback(async (cart, paymentMethod, amountReceived, discount = 0) => {
+  const completeSale = useCallback(async (cart, paymentMethod, amountReceived, discount = 0, customerName = "Walk-in Customer") => {
     if (!shop) throw new Error("Create your local shop profile first.");
     const sale = await recordSaleLocal(
       shop.id,
@@ -190,6 +197,8 @@ export function StoreProvider({ children }) {
       paymentMethod,
       Number(amountReceived),
       Number(discount || 0),
+      0,
+      customerName,
     );
     setCart([]);
     await refresh();
@@ -237,11 +246,11 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     ready, shop, products, sales, conflicts, cart, cartNotice, session, cloudConfigured,
     backupTime, backupInterval, lastBackupAt, syncStatus, syncMessage,
-    refresh, createShop, saveProduct, addToCart, changeCartQuantity, completeSale, signIn, syncNow,
+    refresh, createShop, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, signIn, syncNow,
     updateBackupSchedule, resolveConflict,
   }), [
     ready, shop, products, sales, conflicts, cart, cartNotice, session, backupTime, backupInterval,
-    lastBackupAt, syncStatus, syncMessage, refresh, createShop, saveProduct,
+    lastBackupAt, syncStatus, syncMessage, refresh, createShop, saveProduct, archiveProduct,
     addToCart, changeCartQuantity, completeSale, signIn, syncNow, updateBackupSchedule, resolveConflict,
   ]);
 

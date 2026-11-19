@@ -1,7 +1,23 @@
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { AlertTriangle, ArrowLeft, Cloud, CloudUpload, Eye, EyeOff, UserRound } from "lucide-react-native";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Cloud,
+  CloudUpload,
+  Eye,
+  EyeOff,
+  LogOut,
+  MapPin,
+  ShieldCheck,
+  Store,
+  UserRound,
+} from "lucide-react-native";
 import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../../src/components/Screen";
 import { useStore } from "../../src/StoreProvider";
 import { supabase } from "../../src/lib/supabase";
@@ -19,6 +35,7 @@ export default function SettingsScreen() {
   const [createAccount, setCreateAccount] = useState(false);
   const [time, setTime] = useState(backupTime);
   const [interval, setInterval] = useState(backupInterval);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState("success");
@@ -37,7 +54,7 @@ export default function SettingsScreen() {
       await signIn(email.trim(), password, createAccount);
       setPassword("");
       setShowPassword(false);
-      showMessage(createAccount ? "Account request submitted." : "Account connected.");
+      showMessage(createAccount ? "Check your email to confirm your account." : "Account connected.");
     } catch (error) {
       showMessage(error.message || "Could not connect your account.", "error");
     } finally {
@@ -46,11 +63,16 @@ export default function SettingsScreen() {
   }
 
   async function saveSchedule() {
+    setBusy(true);
+    showMessage("");
     try {
       await updateBackupSchedule(time, interval);
-      showMessage("Backup schedule saved on this device.");
+      showMessage("Automatic backup schedule saved on this device.");
+      setScheduleExpanded(false);
     } catch (error) {
-      showMessage(error.message, "error");
+      showMessage(error.message || "Could not save the backup schedule.", "error");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -59,117 +81,388 @@ export default function SettingsScreen() {
     showMessage("");
     try {
       const result = await syncNow();
-      showMessage(`Backup complete. ${result.saleCount} sales and ${result.productCount} products copied to Supabase.`);
+      showMessage(`Backup complete · ${result.saleCount} sales · ${result.productCount} products`);
     } catch (error) {
-      showMessage(error.message, "error");
+      showMessage(error.message || "Backup could not be completed.", "error");
     } finally {
       setBusy(false);
     }
   }
 
   async function signOut() {
+    setBusy(true);
+    showMessage("");
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      showMessage("Signed out. Local data remains on this device.");
+      showMessage("Signed out. Your shop data remains on this device.");
       await refresh();
     } catch (error) {
       showMessage(error.message || "Could not sign out.", "error");
+    } finally {
+      setBusy(false);
     }
+  }
+
+  function confirmSignOut() {
+    Alert.alert(
+      "Sign out of cloud backup?",
+      "Your shop data will stay on this device. Automatic cloud sync will pause until you sign in again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
+      ],
+    );
   }
 
   async function resolve(item, strategy) {
     try {
       await resolveConflict(item, strategy);
-      showMessage("Conflict marked resolved. Sync again to apply the selected version.");
+      showMessage("Choice saved. Sync again to apply the selected version.");
     } catch (error) {
-      Alert.alert("Needs review", error.message);
+      Alert.alert("Could not resolve conflict", error.message);
     }
   }
 
+  const statusLabel = syncStatus === "error"
+    ? "Needs attention"
+    : syncStatus === "syncing"
+      ? "Syncing"
+      : syncStatus === "synced"
+        ? "Up to date"
+        : session
+          ? "Connected"
+          : "Local only";
+  const scheduleChanged = time !== backupTime || interval !== backupInterval;
+  const feedback = message || syncMessage;
+  const feedbackIsError = message ? messageTone === "error" : syncStatus === "error";
+
   return (
     <AppScreen>
-      <ScreenHeader title="Settings" subtitle="Local storage, cloud backup, and account" action={<Pressable style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Back"><ArrowLeft size={17} color={colors.red} /><Text style={styles.backText}>Back</Text></Pressable>} />
-      <Surface style={styles.statusCard}>
-        <View style={styles.statusLine}><View style={[styles.dot, syncStatus === "synced" && styles.dotGreen, syncStatus === "error" && styles.dotRed]} /><Cloud size={16} color="white" strokeWidth={2} /><Text style={styles.statusTitle}>{syncStatus === "syncing" ? "Sync in progress" : session ? "Cloud account connected" : "Offline-first mode"}</Text></View>
-        <Text style={styles.shopName}>{shop.name} · {shop.owner_name}</Text>
-        <Text style={styles.body}>Sales and inventory are written to this device first. Cloud sync is a backup and sharing layer.</Text>
-        {lastBackupAt ? <Text style={styles.meta}>Last backup: {new Date(lastBackupAt).toLocaleString()}</Text> : <Text style={styles.meta}>No cloud backup completed yet.</Text>}
+      <ScreenHeader
+        title="Settings"
+        subtitle="Manage your shop and data"
+        action={
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={18} color={colors.ink} />
+          </Pressable>
+        }
+      />
+
+      <Surface style={styles.profileCard}>
+        <View style={styles.profileIcon}><Store size={20} color={colors.red} strokeWidth={2} /></View>
+        <View style={styles.profileCopy}>
+          <Text style={styles.eyebrow}>SHOP PROFILE</Text>
+          <Text style={styles.shopName}>{shop.name}</Text>
+          <Text style={styles.profileDetail}>Owner · {shop.owner_name}</Text>
+          {shop.phone ? <Text style={styles.profileDetail}>{shop.phone}</Text> : null}
+          {shop.address ? (
+            <View style={styles.addressRow}>
+              <MapPin size={12} color={colors.muted} />
+              <Text style={styles.profileDetail}>{shop.address}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.localPill}><Check size={12} color={colors.green} /><Text style={styles.localPillText}>On device</Text></View>
       </Surface>
-      <View style={styles.sectionHeader}><CloudUpload size={14} color={colors.red} strokeWidth={2} /><Text style={styles.section}>BACKUP SCHEDULE</Text></View>
-      <Surface>
-        <Text style={styles.body}>Preferred local backup time</Text>
-        <View style={styles.scheduleRow}><View style={styles.timeField}><Text style={styles.fieldLabel}>TIME</Text><TextInput value={time} onChangeText={setTime} placeholder="06:00" style={styles.input} keyboardType="numbers-and-punctuation" maxLength={5} accessibilityLabel="Backup time in 24-hour format" /><Text style={styles.meta}>24-hour local time</Text></View><View style={styles.intervalField}><Text style={styles.fieldLabel}>EVERY (DAYS)</Text><TextInput value={interval} onChangeText={setInterval} placeholder="1" style={styles.input} keyboardType="number-pad" maxLength={3} accessibilityLabel="Backup interval in days" /><Text style={styles.meta}>1 = daily</Text></View></View>
-        <PrimaryButton title="Save backup schedule" onPress={saveSchedule} />
-        <Text style={styles.warning}>Mobile OS background work is best-effort; iOS/Android can delay the 6 AM run. Sync also checks on app open/reconnect, and you can back up now.</Text>
-        <PrimaryButton title={busy ? "Working…" : "Back up now"} disabled={busy || !cloudConfigured} onPress={backup} style={styles.manualButton} />
-        {!cloudConfigured ? <Text style={styles.error}>Add the Supabase URL and anon key in mobile/.env to enable cloud backup.</Text> : null}
-      </Surface>
-      <View style={styles.sectionHeader}><UserRound size={14} color={colors.red} strokeWidth={2} /><Text style={styles.section}>SUPABASE ACCOUNT</Text></View>
-      <Surface>
-        {session ? <><Text style={styles.body}>Signed in as {session.user.email}</Text><PrimaryButton title={busy ? "Syncing…" : "Sync and back up now"} disabled={busy} onPress={backup} style={styles.manualButton} /><Pressable onPress={signOut} style={styles.signOut}><Text style={styles.signOutText}>Sign out (keep local data)</Text></Pressable></> : <>
-          <Text style={styles.body}>{createAccount ? "Create an account while online. Your local shop data will remain available offline." : "Sign in to sync this device with your Supabase shop."}</Text>
-          <Text style={styles.fieldLabel}>Email address</Text>
-          <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} accessibilityLabel="Email address" />
-          <Text style={[styles.fieldLabel, styles.passwordLabel]}>Password</Text>
-          <View style={styles.passwordField}>
-            <TextInput value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPassword} autoComplete={createAccount ? "new-password" : "current-password"} style={styles.passwordControl} accessibilityLabel="Password" />
-            <Pressable style={styles.passwordToggle} onPress={() => setShowPassword(!showPassword)} accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"}>
-              {showPassword ? <EyeOff size={18} color={colors.muted} /> : <Eye size={18} color={colors.muted} />}
+
+      <SectionHeading icon={CloudUpload} title="BACKUP & RESTORE" />
+      <Surface style={styles.sectionCard}>
+        <View style={styles.backupHeader}>
+          <View style={styles.backupIcon}><Cloud size={19} color={colors.red} /></View>
+          <View style={styles.backupCopy}>
+            <Text style={styles.cardTitle}>Cloud backup</Text>
+            <Text style={styles.body}>Your sales and products stay available on this device. Backups add an off-device copy.</Text>
+          </View>
+        </View>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, syncStatus === "error" ? styles.dotError : syncStatus === "syncing" ? styles.dotWorking : syncStatus === "synced" ? styles.dotSuccess : styles.dotNeutral]} />
+          <Text style={styles.statusText}>{statusLabel}</Text>
+          <Text style={styles.statusTime}>
+            {lastBackupAt ? `Last backup ${new Date(lastBackupAt).toLocaleString()}` : "No backup completed yet"}
+          </Text>
+        </View>
+
+        {session && cloudConfigured ? (
+          <PrimaryButton title={busy ? "Backing up…" : "Back up now"} disabled={busy} onPress={backup} style={styles.backupButton} />
+        ) : (
+          <Text style={styles.inlineHint}>
+            {!cloudConfigured
+              ? "Cloud backup is unavailable until Supabase is configured for this app."
+              : "Sign in below to enable secure cloud backup."}
+          </Text>
+        )}
+
+        <View style={styles.divider} />
+        <Pressable
+          style={styles.expandRow}
+          onPress={() => setScheduleExpanded(!scheduleExpanded)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: scheduleExpanded }}
+        >
+          <View style={styles.expandIcon}><CloudUpload size={15} color={colors.muted} /></View>
+          <View style={styles.expandCopy}>
+            <Text style={styles.expandTitle}>Automatic backup</Text>
+            <Text style={styles.expandDetail}>Every {backupInterval} day{backupInterval === "1" ? "" : "s"} · {backupTime} local time</Text>
+          </View>
+          {scheduleExpanded ? <ChevronUp size={18} color={colors.muted} /> : <ChevronDown size={18} color={colors.muted} />}
+        </Pressable>
+        {scheduleExpanded ? (
+          <View style={styles.schedulePanel}>
+            <Text style={styles.scheduleHint}>Runs when the app and device allow background work; your operating system may defer it.</Text>
+            <View style={styles.scheduleFields}>
+              <View style={styles.timeField}>
+                <Text style={styles.fieldLabel}>TIME OF DAY</Text>
+                <TextInput
+                  value={time}
+                  onChangeText={setTime}
+                  placeholder="06:00"
+                  style={styles.input}
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={5}
+                  accessibilityLabel="Automatic backup time in 24-hour format"
+                />
+                <Text style={styles.inputHint}>24-hour local time</Text>
+              </View>
+              <View style={styles.intervalField}>
+                <Text style={styles.fieldLabel}>REPEAT EVERY</Text>
+                <View style={styles.intervalInputRow}>
+                  <TextInput
+                    value={interval}
+                    onChangeText={setInterval}
+                    placeholder="1"
+                    style={[styles.input, styles.intervalInput]}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    accessibilityLabel="Automatic backup interval in days"
+                  />
+                  <Text style={styles.daysLabel}>days</Text>
+                </View>
+                <Text style={styles.inputHint}>Choose 1–365 days</Text>
+              </View>
+            </View>
+            <Pressable
+              style={[styles.saveScheduleButton, (!scheduleChanged || busy) && styles.buttonDisabled]}
+              onPress={saveSchedule}
+              disabled={!scheduleChanged || busy}
+              accessibilityRole="button"
+            >
+              <Text style={styles.saveScheduleText}>{busy ? "Saving…" : "Save schedule"}</Text>
             </Pressable>
           </View>
-          <PrimaryButton title={busy ? "Connecting…" : createAccount ? "Create account" : "Sign in"} disabled={busy || !cloudConfigured || !email.trim() || !password} onPress={connect} />
-          <Pressable onPress={() => setCreateAccount(!createAccount)} style={styles.switchAuth}><Text style={styles.switchText}>{createAccount ? "Already registered? Sign in" : "New to NexTill? Create account"}</Text></Pressable>
-        </>}
-        {message || syncMessage ? <Text style={[styles.message, (messageTone === "error" || syncStatus === "error") && styles.messageError]}>{message || syncMessage}</Text> : null}
+        ) : null}
       </Surface>
-      <View style={styles.sectionHeader}><AlertTriangle size={14} color={colors.red} strokeWidth={2} /><Text style={styles.section}>SYNC CONFLICTS ({conflicts.length})</Text></View>
-      <Surface>
-        {conflicts.length === 0 ? <Text style={styles.body}>No conflicts to review.</Text> : conflicts.map((item) => <View key={item.id} style={styles.conflict}>
-          <Text style={styles.conflictTitle}>{item.entity_type === "product" ? "Product update conflict" : "Sale needs review"}</Text>
-          <Text style={styles.meta}>{item.reason}</Text>
-          {item.entity_type === "product" && item.server_payload ? <View style={styles.conflictActions}><Pressable onPress={() => resolve(item, "server")}><Text style={styles.switchText}>Use server version</Text></Pressable><Pressable onPress={() => resolve(item, "local")}><Text style={styles.switchText}>Keep my version</Text></Pressable></View> : <Text style={styles.warning}>This sale remains safely stored on the device; review stock and payment before retrying.</Text>}
-        </View>)}
+
+      <SectionHeading icon={UserRound} title="CLOUD ACCOUNT" />
+      <Surface style={styles.sectionCard}>
+        {session ? (
+          <>
+            <View style={styles.accountRow}>
+              <View style={styles.accountIcon}><ShieldCheck size={18} color={colors.green} /></View>
+              <View style={styles.accountCopy}>
+                <Text style={styles.cardTitle}>Account connected</Text>
+                <Text style={styles.body}>{session.user.email}</Text>
+              </View>
+            </View>
+            <Text style={styles.privacyNote}>Signing out pauses cloud sync but does not remove local shop data.</Text>
+            <Pressable
+              style={[styles.signOutButton, busy && styles.buttonDisabled]}
+              onPress={confirmSignOut}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              <LogOut size={16} color={colors.red} />
+              <Text style={styles.signOutText}>Sign out</Text>
+              <ChevronRight size={17} color={colors.muted} />
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={styles.body}>Sign in to back up this shop to your Supabase account. Your local data remains available either way.</Text>
+            <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="name@example.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              returnKeyType="next"
+              style={styles.input}
+              accessibilityLabel="Email address"
+            />
+            <Text style={[styles.fieldLabel, styles.passwordLabel]}>PASSWORD</Text>
+            <View style={styles.passwordField}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder={createAccount ? "At least 8 characters" : "Enter your password"}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete={createAccount ? "new-password" : "current-password"}
+                returnKeyType="done"
+                onSubmitEditing={() => { if (!busy && email.trim() && password) void connect(); }}
+                style={styles.passwordControl}
+                accessibilityLabel="Password"
+              />
+              <Pressable
+                style={styles.passwordToggle}
+                onPress={() => setShowPassword(!showPassword)}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} color={colors.muted} /> : <Eye size={18} color={colors.muted} />}
+              </Pressable>
+            </View>
+            <PrimaryButton
+              title={busy ? "Connecting…" : createAccount ? "Create account" : "Sign in"}
+              disabled={busy || !cloudConfigured || !email.trim() || !password}
+              onPress={connect}
+              style={styles.accountButton}
+            />
+            <Pressable
+              onPress={() => {
+                setCreateAccount(!createAccount);
+                setPassword("");
+                setShowPassword(false);
+                showMessage("");
+              }}
+              style={styles.switchAuth}
+              accessibilityRole="button"
+            >
+              <Text style={styles.switchText}>{createAccount ? "Already have an account? Sign in" : "New to NexTill? Create an account"}</Text>
+            </Pressable>
+            {!cloudConfigured ? <Text style={styles.configHint}>Cloud account access is not configured for this app.</Text> : null}
+          </>
+        )}
+        {feedback ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, feedbackIsError ? styles.feedbackError : styles.feedbackSuccess]}>{feedback}</Text> : null}
       </Surface>
-      <Text style={styles.footer}>NexTill Shop · Data is stored locally first. Never share a Supabase service-role key with the app.</Text>
+
+      {conflicts.length > 0 ? (
+        <>
+          <SectionHeading icon={AlertTriangle} title={`SYNC ISSUES · ${conflicts.length}`} attention />
+          <Surface style={styles.sectionCard}>
+            <Text style={styles.body}>Review these items before relying on the cloud copy. Local records remain on this device.</Text>
+            {conflicts.map((item) => (
+              <View key={item.id} style={styles.conflict}>
+                <Text style={styles.conflictTitle}>{item.entity_type === "product" ? "Product update conflict" : "Sale needs review"}</Text>
+                <Text style={styles.conflictReason}>{item.reason}</Text>
+                {item.entity_type === "product" && item.server_payload ? (
+                  <View style={styles.conflictActions}>
+                    <Pressable style={styles.conflictButton} onPress={() => resolve(item, "server")} accessibilityRole="button">
+                      <Text style={styles.conflictButtonText}>Use cloud version</Text>
+                    </Pressable>
+                    <Pressable style={styles.conflictButton} onPress={() => resolve(item, "local")} accessibilityRole="button">
+                      <Text style={styles.conflictButtonText}>Keep this device</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text style={styles.conflictHint}>Review stock and payment before retrying this sale.</Text>
+                )}
+              </View>
+            ))}
+          </Surface>
+        </>
+      ) : null}
+
+      <View style={styles.footer}>
+        <ShieldCheck size={15} color={colors.green} />
+        <Text style={styles.footerText}>Your shop works offline. Cloud backup is optional and can be disconnected at any time.</Text>
+      </View>
     </AppScreen>
   );
 }
 
+function SectionHeading({ icon: Icon, title, attention = false }) {
+  return (
+    <View style={styles.sectionHeading}>
+      <Icon size={15} color={attention ? colors.amber : colors.red} strokeWidth={2} />
+      <Text style={[styles.sectionTitle, attention && styles.sectionTitleAttention]}>{title}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  statusCard: { backgroundColor: colors.dark, borderColor: colors.dark },
-  backButton: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 5 },
-  backText: { color: colors.red, fontSize: 10, fontWeight: "800" },
-  statusLine: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 5, backgroundColor: "#d9a03c" },
-  dotGreen: { backgroundColor: "#31c886" },
-  dotRed: { backgroundColor: "#ef6963" },
-  statusTitle: { color: "white", fontSize: 12, fontWeight: "800" },
-  shopName: { marginTop: 10, color: "white", fontSize: 14, fontWeight: "800" },
-  body: { marginTop: 6, color: colors.muted, fontSize: 11, lineHeight: 16 },
-  meta: { marginTop: 7, color: "#9096a0", fontSize: 9, lineHeight: 14 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 17, marginBottom: 7 },
-  section: { color: "#7f8792", fontSize: 8, fontWeight: "800", letterSpacing: 0.8 },
-  scheduleRow: { flexDirection: "row", gap: 9, marginTop: 12, marginBottom: 12 },
+  backButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "white", borderWidth: 1, borderColor: colors.line },
+  profileCard: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14 },
+  profileIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#fff0ef" },
+  profileCopy: { flex: 1 },
+  eyebrow: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  shopName: { marginTop: 4, color: colors.ink, fontSize: 15, fontWeight: "800" },
+  profileDetail: { marginTop: 4, color: colors.muted, fontSize: 11, lineHeight: 16 },
+  addressRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  localPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "#eaf7f1", borderRadius: 20 },
+  localPillText: { color: colors.green, fontSize: 9, fontWeight: "800" },
+  sectionHeading: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 20, marginBottom: 8, paddingHorizontal: 2 },
+  sectionTitle: { color: "#717985", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  sectionTitleAttention: { color: colors.amber },
+  sectionCard: { padding: 14 },
+  backupHeader: { flexDirection: "row", alignItems: "flex-start", gap: 11 },
+  backupIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#fff0ef" },
+  backupCopy: { flex: 1 },
+  cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  body: { marginTop: 5, color: colors.muted, fontSize: 11, lineHeight: 16 },
+  statusRow: { flexDirection: "row", alignItems: "center", minHeight: 40, marginTop: 12, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  statusDot: { width: 8, height: 8, marginRight: 7, borderRadius: 4 },
+  dotSuccess: { backgroundColor: colors.green },
+  dotWorking: { backgroundColor: colors.amber },
+  dotError: { backgroundColor: colors.red },
+  dotNeutral: { backgroundColor: "#9aa1ab" },
+  statusText: { color: colors.ink, fontSize: 10, fontWeight: "800" },
+  statusTime: { flex: 1, marginLeft: 8, color: colors.muted, fontSize: 9, textAlign: "right" },
+  backupButton: { marginTop: 12 },
+  inlineHint: { marginTop: 12, padding: 10, color: colors.muted, backgroundColor: "#f5f6f8", borderRadius: 8, fontSize: 10, lineHeight: 15 },
+  divider: { height: 1, marginTop: 13, backgroundColor: colors.line },
+  expandRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10 },
+  expandIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: "#f4f5f7" },
+  expandCopy: { flex: 1 },
+  expandTitle: { color: colors.ink, fontSize: 11, fontWeight: "800" },
+  expandDetail: { marginTop: 3, color: colors.muted, fontSize: 10 },
+  schedulePanel: { paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.line },
+  scheduleHint: { color: colors.muted, fontSize: 10, lineHeight: 15 },
+  scheduleFields: { flexDirection: "row", gap: 10, marginTop: 12 },
   timeField: { flex: 1 },
-  intervalField: { width: 102 },
-  fieldLabel: { marginBottom: 5, color: "#848b95", fontSize: 9, fontWeight: "800" },
-  input: { height: 44, paddingHorizontal: 10, color: colors.ink, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8, fontSize: 12 },
-  warning: { marginTop: 9, color: "#99631f", backgroundColor: "#fff5e5", borderRadius: 7, padding: 8, fontSize: 9, lineHeight: 14 },
-  manualButton: { marginTop: 10 },
-  error: { marginTop: 9, color: colors.red, fontSize: 10 },
-  passwordLabel: { marginTop: 11 },
-  passwordField: { minHeight: 44, flexDirection: "row", alignItems: "center", marginBottom: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 8 },
-  passwordControl: { flex: 1, height: 44, paddingHorizontal: 10, color: colors.ink, fontSize: 12 },
-  passwordToggle: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  switchAuth: { alignItems: "center", marginTop: 12 },
-  switchText: { color: colors.red, fontSize: 10, fontWeight: "800" },
-  signOut: { alignItems: "center", marginTop: 13, paddingTop: 11, borderTopColor: colors.line, borderTopWidth: 1 },
-  signOutText: { color: colors.red, fontSize: 9, fontWeight: "800" },
-  message: { marginTop: 10, color: colors.green, fontSize: 10, lineHeight: 15 },
-  messageError: { color: colors.red },
-  conflict: { paddingVertical: 11, borderBottomColor: colors.line, borderBottomWidth: 1 },
-  conflictTitle: { color: colors.ink, fontSize: 11, fontWeight: "800" },
-  conflictActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
-  footer: { marginTop: 16, marginBottom: 12, color: "#9ba1aa", fontSize: 9, textAlign: "center", lineHeight: 14 },
+  intervalField: { flex: 1 },
+  fieldLabel: { marginBottom: 6, color: "#727985", fontSize: 9, fontWeight: "800", letterSpacing: 0.4 },
+  input: { height: 46, paddingHorizontal: 12, color: colors.ink, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 9, fontSize: 13 },
+  inputHint: { marginTop: 5, color: colors.muted, fontSize: 9 },
+  intervalInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  intervalInput: { flex: 1 },
+  daysLabel: { color: colors.muted, fontSize: 11 },
+  saveScheduleButton: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 9, backgroundColor: "white" },
+  saveScheduleText: { color: colors.ink, fontSize: 11, fontWeight: "800" },
+  buttonDisabled: { opacity: 0.5 },
+  accountRow: { flexDirection: "row", alignItems: "center", gap: 11 },
+  accountIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#eaf7f1" },
+  accountCopy: { flex: 1 },
+  privacyNote: { marginTop: 12, color: colors.muted, fontSize: 10, lineHeight: 15 },
+  signOutButton: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, marginTop: 12, paddingHorizontal: 11, borderWidth: 1, borderColor: colors.line, borderRadius: 9 },
+  signOutText: { flex: 1, color: colors.red, fontSize: 11, fontWeight: "800" },
+  passwordLabel: { marginTop: 13 },
+  passwordField: { minHeight: 46, flexDirection: "row", alignItems: "center", marginBottom: 12, backgroundColor: "white", borderWidth: 1, borderColor: colors.line, borderRadius: 9 },
+  passwordControl: { flex: 1, height: 46, paddingHorizontal: 12, color: colors.ink, fontSize: 13 },
+  passwordToggle: { width: 46, height: 46, alignItems: "center", justifyContent: "center" },
+  accountButton: { marginTop: 2 },
+  switchAuth: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 3 },
+  switchText: { color: colors.red, fontSize: 11, fontWeight: "800" },
+  configHint: { marginTop: 2, color: colors.amber, fontSize: 10, lineHeight: 15, textAlign: "center" },
+  feedback: { marginTop: 10, fontSize: 10, lineHeight: 15 },
+  feedbackSuccess: { color: colors.green },
+  feedbackError: { color: colors.red },
+  conflict: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
+  conflictTitle: { color: colors.ink, fontSize: 12, fontWeight: "800" },
+  conflictReason: { marginTop: 5, color: colors.muted, fontSize: 10, lineHeight: 15 },
+  conflictActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  conflictButton: { minHeight: 40, flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 8 },
+  conflictButtonText: { color: colors.red, fontSize: 10, fontWeight: "800" },
+  conflictHint: { marginTop: 8, padding: 9, color: colors.amber, backgroundColor: "#fff5e5", borderRadius: 8, fontSize: 10, lineHeight: 15 },
+  footer: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 18, paddingHorizontal: 8, paddingBottom: 6 },
+  footerText: { flexShrink: 1, color: colors.muted, fontSize: 9, lineHeight: 14, textAlign: "center" },
 });

@@ -192,6 +192,18 @@ async function pullCloudData(shopId, cloudShopId) {
     .order("name")
     .limit(1000);
   throwOnError(productError, "Download products");
+  const { data: remoteBarcodes, error: barcodeError } = await supabase
+    .from("product_barcodes")
+    .select("product_id, barcode")
+    .eq("shop_id", cloudShopId)
+    .eq("active", true);
+  throwOnError(barcodeError, "Download product barcodes");
+  const barcodesByProduct = new Map();
+  for (const row of remoteBarcodes || []) {
+    const barcodes = barcodesByProduct.get(row.product_id) || [];
+    barcodes.push(row.barcode);
+    barcodesByProduct.set(row.product_id, barcodes);
+  }
 
   const localProducts = await db.getAllAsync("SELECT * FROM products WHERE shop_id = ?", shopId);
   const queued = await db.getAllAsync(
@@ -257,6 +269,20 @@ async function pullCloudData(shopId, cloudShopId) {
       remote.version,
       remote.updated_at,
     );
+    const barcodes = barcodesByProduct.get(remote.id) || (remote.barcode ? [remote.barcode] : []);
+    await db.runAsync(
+      "DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ?",
+      shopId,
+      remote.id,
+    );
+    for (const barcode of barcodes) {
+      await db.runAsync(
+        "INSERT INTO product_barcodes (shop_id, product_id, barcode, active) VALUES (?, ?, ?, 1)",
+        shopId,
+        remote.id,
+        barcode,
+      );
+    }
   }
 
   const { data: remoteSales, error: salesError } = await supabase
@@ -408,34 +434,63 @@ export async function resolveProductConflict(conflict, strategy) {
   const local = JSON.parse(conflict.local_payload);
   const server = conflict.server_payload ? JSON.parse(conflict.server_payload) : null;
   if (strategy === "server" && server) {
+    const cloudShopId = await getSetting("cloud_shop_id");
+    let serverBarcodes = server.barcode ? [server.barcode] : [];
+    if (cloudShopId) {
+      const { data, error } = await supabase
+        .from("product_barcodes")
+        .select("barcode")
+        .eq("shop_id", cloudShopId)
+        .eq("product_id", conflict.entity_id)
+        .eq("active", true);
+      throwOnError(error, "Load product barcodes");
+      serverBarcodes = (data || []).map((item) => item.barcode);
+    }
     const imageUrl = server.image_url
       ? await downloadCloudProductImage(conflict.entity_id, server.image_url)
       : null;
-    await db.runAsync(
-      `UPDATE products SET name = ?, sku = ?, barcode = ?, category = ?, unit = ?,
-        image_url = ?, cloud_image_url = ?, cost_price = ?, selling_price = ?, stock_qty = ?,
-        low_stock_threshold = ?, version = ?, updated_at = ? WHERE id = ? AND shop_id = ?`,
-      server.name,
-      server.sku,
-      server.barcode,
-      server.category || "Others",
-      server.unit,
-      imageUrl,
-      server.image_url || null,
-      server.cost_price,
-      server.selling_price,
-      server.stock_qty,
-      server.low_stock_threshold,
-      server.version,
-      server.updated_at,
-      conflict.entity_id,
-      conflict.shop_id,
-    );
-    await db.runAsync(
-      "DELETE FROM outbox WHERE shop_id = ? AND entity_type = 'product' AND entity_id = ?",
-      conflict.shop_id,
-      conflict.entity_id,
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `UPDATE products SET name = ?, sku = ?, barcode = ?, category = ?, unit = ?,
+          image_url = ?, cloud_image_url = ?, cost_price = ?, selling_price = ?, stock_qty = ?,
+          low_stock_threshold = ?, active = ?, version = ?, updated_at = ? WHERE id = ? AND shop_id = ?`,
+        server.name,
+        server.sku,
+        server.barcode,
+        server.category || "Others",
+        server.unit,
+        imageUrl,
+        server.image_url || null,
+        server.cost_price,
+        server.selling_price,
+        server.stock_qty,
+        server.low_stock_threshold,
+        server.active ? 1 : 0,
+        server.version,
+        server.updated_at,
+        conflict.entity_id,
+        conflict.shop_id,
+      );
+      await db.runAsync(
+        "DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ?",
+        conflict.shop_id,
+        conflict.entity_id,
+      );
+      for (const barcode of serverBarcodes) {
+        await db.runAsync(
+          "INSERT INTO product_barcodes (shop_id, product_id, barcode, active) VALUES (?, ?, ?, ?)",
+          conflict.shop_id,
+          conflict.entity_id,
+          barcode,
+          server.active ? 1 : 0,
+        );
+      }
+      await db.runAsync(
+        "DELETE FROM outbox WHERE shop_id = ? AND entity_type = 'product' AND entity_id = ?",
+        conflict.shop_id,
+        conflict.entity_id,
+      );
+    });
   } else if (strategy === "local") {
     const operationId = Crypto.randomUUID();
     const payload = { ...local, category_id: local.category, stock_qty: local.stock_qty };

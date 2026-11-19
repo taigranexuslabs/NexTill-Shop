@@ -1,15 +1,16 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { ChevronRight, CircleHelp, Package, ReceiptText, Settings2, Store } from "lucide-react-native";
+import { ChevronRight, CircleHelp, Settings2, ChartNoAxesCombined, WalletCards, Users, UserRoundCog } from "lucide-react-native";
 import { useStore } from "../../src/StoreProvider";
 import { AppScreen, ScreenHeader, Surface } from "../../src/components/Screen";
 import { colors } from "../../src/theme";
 
 const links = [
   { title: "Shop profile & backup", detail: "Shop details, account and sync", icon: Settings2, href: "/(tabs)/settings" },
-  { title: "Sales & invoices", detail: "Review saved transactions", icon: ReceiptText, href: "/(tabs)/sales" },
-  { title: "Products & inventory", detail: "Find products and manage stock", icon: Package, href: "/(tabs)/products" },
-  { title: "Dashboard", detail: "Today's business overview", icon: Store, href: "/(tabs)" },
+  { title: "Reports & analytics", detail: "Sales and profit insights", icon: ChartNoAxesCombined, href: "/reports" },
+  { title: "Expenses", detail: "Track shop spending", icon: WalletCards, href: "/expenses" },
+  { title: "Customers", detail: "View customer records", icon: Users, href: "/customers" },
+  { title: "Staff & employees", detail: "Manage team members", icon: UserRoundCog, href: "/staff" },
 ];
 
 export default function MoreScreen() {

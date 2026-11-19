@@ -14,7 +14,7 @@ export default function SaleScreen() {
   const [category, setCategory] = useState("All");
   const categories = ["All", ...new Set(products.map((product) => product.category))];
   const visibleProducts = useMemo(() => products.filter((product) => {
-    const text = `${product.name} ${product.sku} ${product.barcode || ""}`.toLowerCase();
+    const text = `${product.name} ${product.sku} ${product.barcodes?.join(" ") || product.barcode || ""}`.toLowerCase();
     return product.active && (category === "All" || product.category === category) && text.includes(search.toLowerCase());
   }), [category, products, search]);
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0);

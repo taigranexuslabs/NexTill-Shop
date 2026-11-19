@@ -21,7 +21,7 @@ export default function ScannerScreen() {
       setMessage("Enter a barcode or SKU to search.");
       return;
     }
-    const product = products.find((item) => item.barcode === normalizedCode || item.sku.toLowerCase() === normalizedCode.toLowerCase());
+    const product = products.find((item) => item.barcodes?.includes(normalizedCode) || item.barcode === normalizedCode || item.sku.toLowerCase() === normalizedCode.toLowerCase());
     if (!product) {
       setValue(code);
       setMessage("Product not found. Search your inventory or add it.");

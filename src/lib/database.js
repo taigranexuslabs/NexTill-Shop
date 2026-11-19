@@ -38,6 +38,17 @@ export async function getDatabase() {
         );
         CREATE UNIQUE INDEX IF NOT EXISTS products_barcode_unique
           ON products(shop_id, barcode) WHERE barcode IS NOT NULL AND active = 1;
+        CREATE TABLE IF NOT EXISTS product_barcodes (
+          shop_id TEXT NOT NULL,
+          product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          barcode TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          UNIQUE (product_id, barcode)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS product_barcodes_active_unique
+          ON product_barcodes(shop_id, barcode) WHERE active = 1;
+        CREATE INDEX IF NOT EXISTS product_barcodes_product_idx
+          ON product_barcodes(shop_id, product_id);
         CREATE TABLE IF NOT EXISTS sales (
           id TEXT PRIMARY KEY NOT NULL,
           shop_id TEXT NOT NULL,
@@ -101,6 +112,11 @@ export async function getDatabase() {
       if (!productColumns.some((column) => column.name === "cloud_image_url")) {
         await db.execAsync("ALTER TABLE products ADD COLUMN cloud_image_url TEXT");
       }
+      await db.runAsync(
+        `INSERT OR IGNORE INTO product_barcodes (shop_id, product_id, barcode, active)
+         SELECT shop_id, id, barcode, active
+         FROM products WHERE active = 1 AND barcode IS NOT NULL AND trim(barcode) <> ''`,
+      );
       return db;
     });
   }
@@ -145,10 +161,24 @@ export async function saveLocalShop(shop) {
 
 export async function readProducts(shopId) {
   const db = await getDatabase();
-  return db.getAllAsync(
+  const products = await db.getAllAsync(
     "SELECT * FROM products WHERE shop_id = ? AND active = 1 ORDER BY name COLLATE NOCASE",
     shopId,
   );
+  const barcodes = await db.getAllAsync(
+    "SELECT product_id, barcode FROM product_barcodes WHERE shop_id = ? AND active = 1 ORDER BY barcode",
+    shopId,
+  );
+  const barcodesByProduct = new Map();
+  for (const row of barcodes) {
+    const values = barcodesByProduct.get(row.product_id) || [];
+    values.push(row.barcode);
+    barcodesByProduct.set(row.product_id, values);
+  }
+  return products.map((product) => ({
+    ...product,
+    barcodes: barcodesByProduct.get(product.id) || (product.barcode ? [product.barcode] : []),
+  }));
 }
 
 export async function readSales(shopId, limit = 100) {
@@ -171,12 +201,21 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
   const db = await getDatabase();
   const now = new Date().toISOString();
   const id = productId || values.id;
+  const barcodes = [...new Set(
+    [values.barcode, ...(values.barcodes || [])]
+      .map((barcode) => String(barcode || "").trim())
+      .filter(Boolean),
+  )];
+  if (barcodes.some((barcode) => barcode.length > 128)) {
+    throw new Error("Barcodes must be 128 characters or fewer.");
+  }
   const product = {
     id,
     shop_id: shopId,
     name: values.name.trim(),
     sku: values.sku.trim(),
-    barcode: values.barcode?.trim() || null,
+    barcode: barcodes[0] || null,
+    barcodes,
     category: values.category || "Others",
     unit: values.unit || "unit",
     image_url: values.imageUrl?.trim() || null,
@@ -189,6 +228,18 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
     updated_at: now,
   };
   await db.withTransactionAsync(async () => {
+    for (const barcode of barcodes) {
+      const owner = await db.getFirstAsync(
+        `SELECT p.name FROM product_barcodes b
+         JOIN products p ON p.id = b.product_id AND p.shop_id = b.shop_id
+         WHERE b.shop_id = ? AND b.barcode = ? AND b.active = 1 AND b.product_id <> ?`,
+        shopId,
+        barcode,
+        id,
+      );
+      if (owner) throw new Error(`Barcode ${barcode} is already assigned to ${owner.name}.`);
+    }
+
     if (productId) {
       const existing = await db.getFirstAsync(
         "SELECT image_url, cloud_image_url FROM products WHERE id = ? AND shop_id = ?",
@@ -238,6 +289,15 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
         now,
       );
     }
+    await db.runAsync("DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ?", shopId, id);
+    for (const barcode of barcodes) {
+      await db.runAsync(
+        "INSERT INTO product_barcodes (shop_id, product_id, barcode, active) VALUES (?, ?, ?, 1)",
+        shopId,
+        id,
+        barcode,
+      );
+    }
     await db.runAsync(
       `DELETE FROM outbox
        WHERE shop_id = ? AND entity_type = 'product' AND entity_id = ? AND status = 'pending'`,
@@ -258,7 +318,81 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
   return product;
 }
 
-export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceived, discount = 0, tax = 0) {
+export async function archiveProductLocal(shopId, productId, operationId) {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    const product = await db.getFirstAsync(
+      "SELECT * FROM products WHERE id = ? AND shop_id = ? AND active = 1",
+      productId,
+      shopId,
+    );
+    if (!product) throw new Error("This product is no longer in your active inventory.");
+
+    const saleOutbox = await db.getAllAsync(
+      "SELECT payload FROM outbox WHERE shop_id = ? AND entity_type = 'sale' AND status IN ('pending', 'conflict')",
+      shopId,
+    );
+    for (const row of saleOutbox) {
+      const sale = JSON.parse(row.payload);
+      if (sale.items?.some((item) => item.product_id === productId)) {
+        throw new Error("This product is part of a sale that has not synced yet. Sync or resolve that sale before deleting the product.");
+      }
+    }
+
+    const conflict = await db.getFirstAsync(
+      "SELECT id FROM sync_conflicts WHERE shop_id = ? AND entity_type = 'product' AND entity_id = ? AND status = 'open'",
+      shopId,
+      productId,
+    );
+    if (conflict) throw new Error("Resolve this product's sync conflict before deleting it.");
+
+    const now = new Date().toISOString();
+    const barcodes = await db.getAllAsync(
+      "SELECT barcode FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY barcode",
+      shopId,
+      productId,
+    );
+    const payload = {
+      ...product,
+      barcodes: barcodes.map((item) => item.barcode),
+      active: 0,
+      updated_at: now,
+    };
+    await db.runAsync(
+      "UPDATE products SET active = 0, updated_at = ? WHERE id = ? AND shop_id = ?",
+      now,
+      productId,
+      shopId,
+    );
+    await db.runAsync("DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ?", shopId, productId);
+    const pendingProduct = await db.getFirstAsync(
+      "SELECT id FROM outbox WHERE shop_id = ? AND entity_type = 'product' AND entity_id = ? AND status = 'pending'",
+      shopId,
+      productId,
+    );
+    if (pendingProduct) {
+      await db.runAsync(
+        "UPDATE outbox SET payload = ?, expected_version = ? WHERE id = ?",
+        JSON.stringify(payload),
+        Number(product.version) > 0 ? Number(product.version) : null,
+        pendingProduct.id,
+      );
+    } else {
+      await db.runAsync(
+        `INSERT INTO outbox (id, shop_id, entity_type, entity_id, operation, payload, expected_version, created_at)
+         VALUES (?, ?, 'product', ?, 'upsert', ?, ?, ?)`,
+        operationId,
+        shopId,
+        productId,
+        JSON.stringify(payload),
+        Number(product.version) > 0 ? Number(product.version) : null,
+        now,
+      );
+    }
+  });
+}
+
+export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceived, discount = 0, tax = 0, customerName = "Walk-in Customer") {
   const db = await getDatabase();
   const saleId = cart.requestId;
   const now = new Date().toISOString();
@@ -293,12 +427,13 @@ export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceive
     const invoiceNo = `LOCAL-${saleId.slice(-8).toUpperCase()}`;
     await db.runAsync(
       `INSERT INTO sales
-        (id, shop_id, invoice_no, subtotal, discount, tax, total, amount_received,
+        (id, shop_id, invoice_no, customer_name, subtotal, discount, tax, total, amount_received,
          change_due, payment_method, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
       saleId,
       shopId,
       invoiceNo,
+      String(customerName || "").trim() || "Walk-in Customer",
       subtotal,
       discount,
       tax,

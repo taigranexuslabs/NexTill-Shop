@@ -1,6 +1,6 @@
+import { ShoppingBag } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { ShoppingBag } from "lucide-react-native";
 import { useStore } from "../StoreProvider";
 import { colors } from "../theme";
 
@@ -34,7 +34,7 @@ export default function SetupShop() {
         <Text style={styles.subtitle}>This profile is saved on this device first. You can connect Supabase backup later.</Text>
         <View style={styles.form}>
           <Text style={styles.label}>Shop name *</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Vanik Shop" autoCapitalize="words" accessibilityLabel="Shop name" returnKeyType="next" />
+          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. NexTill Shop" autoCapitalize="words" accessibilityLabel="Shop name" returnKeyType="next" />
           <Text style={styles.label}>Owner name *</Text>
           <TextInput style={styles.input} value={ownerName} onChangeText={setOwnerName} placeholder="Your name" autoCapitalize="words" accessibilityLabel="Owner name" returnKeyType="next" />
           <Text style={styles.label}>Phone number</Text>
