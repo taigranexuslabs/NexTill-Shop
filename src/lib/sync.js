@@ -171,7 +171,10 @@ async function pushOutbox(shopId, cloudShopId) {
         || `INV-${String(data.sale?.invoice_number || "").padStart(6, "0")}`;
       await db.withTransactionAsync(async () => {
         await db.runAsync(
-          "UPDATE sales SET invoice_no = ?, status = 'synced' WHERE id = ? AND shop_id = ?",
+          `UPDATE sales
+           SET invoice_no = CASE WHEN invoice_no LIKE 'LOCAL-%' THEN ? ELSE invoice_no END,
+               status = 'synced'
+           WHERE id = ? AND shop_id = ?`,
           invoiceId,
           item.entity_id,
           shopId,

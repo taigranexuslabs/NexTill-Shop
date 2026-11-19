@@ -10,6 +10,7 @@ export default function SetupShop() {
   const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [panVatNumber, setPanVatNumber] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,7 +18,7 @@ export default function SetupShop() {
     setSaving(true);
     setError("");
     try {
-      await createShop({ name, ownerName, phone, address });
+      await createShop({ name, ownerName, phone, address, panVatNumber });
     } catch (reason) {
       setError(reason.message || "Could not create the local shop.");
     } finally {
@@ -41,6 +42,8 @@ export default function SetupShop() {
           <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="+977" keyboardType="phone-pad" accessibilityLabel="Phone number" returnKeyType="next" />
           <Text style={styles.label}>Address</Text>
           <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="City, Nepal" accessibilityLabel="Shop address" returnKeyType="done" />
+          <Text style={styles.label}>PAN / VAT registration number</Text>
+          <TextInput style={styles.input} value={panVatNumber} onChangeText={(value) => setPanVatNumber(value.replace(/\D/g, "").slice(0, 9))} placeholder="9-digit number (optional)" keyboardType="number-pad" maxLength={9} accessibilityLabel="PAN or VAT registration number" returnKeyType="done" />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={[styles.button, saving && styles.disabled]} onPress={submit} disabled={saving}>
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Create shop on this device</Text>}

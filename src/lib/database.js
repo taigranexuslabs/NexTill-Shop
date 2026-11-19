@@ -24,6 +24,7 @@ export async function getDatabase() {
           owner_name TEXT NOT NULL,
           phone TEXT,
           address TEXT,
+          pan_vat_number TEXT,
           currency TEXT NOT NULL DEFAULT 'NPR',
           created_at TEXT NOT NULL
         );
@@ -125,6 +126,10 @@ export async function getDatabase() {
           value TEXT NOT NULL
         );
       `);
+      const shopColumns = await db.getAllAsync("PRAGMA table_info(local_shops)");
+      if (!shopColumns.some((column) => column.name === "pan_vat_number")) {
+        await db.execAsync("ALTER TABLE local_shops ADD COLUMN pan_vat_number TEXT");
+      }
       const productColumns = await db.getAllAsync("PRAGMA table_info(products)");
       if (!productColumns.some((column) => column.name === "image_url")) {
         await db.execAsync("ALTER TABLE products ADD COLUMN image_url TEXT");
@@ -276,20 +281,40 @@ export async function getLocalShop() {
   return db.getFirstAsync("SELECT * FROM local_shops LIMIT 1");
 }
 
+function validatePanVatNumber(value) {
+  const panVatNumber = String(value || "").trim();
+  if (panVatNumber && !/^\d{9}$/.test(panVatNumber)) {
+    throw new Error("Enter a valid 9-digit PAN/VAT number or leave the field blank.");
+  }
+  return panVatNumber || null;
+}
+
 export async function saveLocalShop(shop) {
   const db = await getDatabase();
+  const panVatNumber = validatePanVatNumber(shop.panVatNumber);
   await db.runAsync(
-    `INSERT INTO local_shops (id, name, owner_name, phone, address, currency, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO local_shops (id, name, owner_name, phone, address, pan_vat_number, currency, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     shop.id,
     shop.name.trim(),
     shop.ownerName.trim(),
     shop.phone || null,
     shop.address || null,
+    panVatNumber,
     shop.currency || "NPR",
     new Date().toISOString(),
   );
   await setSetting("shop_id", shop.id);
+}
+
+export async function saveLocalShopPanVatNumber(shopId, value) {
+  const panVatNumber = validatePanVatNumber(value);
+  const db = await getDatabase();
+  await db.runAsync(
+    "UPDATE local_shops SET pan_vat_number = ? WHERE id = ?",
+    panVatNumber,
+    shopId,
+  );
 }
 
 export async function readProducts(shopId) {
@@ -606,7 +631,13 @@ export async function recordSaleLocal(
       throw new Error("Amount received cannot exceed the sale total for this payment method.");
     }
 
-    const invoiceNo = `LOCAL-${saleId.slice(-8).toUpperCase()}`;
+    const sequence = await db.getFirstAsync(
+      `SELECT MAX(CAST(substr(invoice_no, 5) AS INTEGER)) AS last_number
+       FROM sales
+       WHERE shop_id = ? AND invoice_no GLOB 'INV-[0-9]*'`,
+      shopId,
+    );
+    const invoiceNo = `INV-${String(Number(sequence?.last_number || 0) + 1).padStart(6, "0")}`;
     const paidAmount = Math.min(amountReceived, total);
     const savedCustomerName = String(customerName || "").trim();
     const savedCustomerPhone = String(customerPhone || "").trim();

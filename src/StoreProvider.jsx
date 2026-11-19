@@ -14,6 +14,7 @@ import {
   recordSalePaymentLocal,
   recordSaleLocal,
   saveLocalShop,
+  saveLocalShopPanVatNumber,
   saveProductLocal,
   setSetting,
 } from "./lib/database";
@@ -136,7 +137,7 @@ export function StoreProvider({ children }) {
     };
   }, [ready, refresh, userId, shopId, syncNow]);
 
-  const createShop = useCallback(async ({ name, ownerName, phone, address }) => {
+  const createShop = useCallback(async ({ name, ownerName, phone, address, panVatNumber }) => {
     if (!name.trim() || !ownerName.trim()) throw new Error("Shop name and owner name are required.");
     await saveLocalShop({
       id: Crypto.randomUUID(),
@@ -144,10 +145,17 @@ export function StoreProvider({ children }) {
       ownerName,
       phone,
       address,
+      panVatNumber,
       currency: "NPR",
     });
     await refresh();
   }, [refresh]);
+
+  const updateShopPanVatNumber = useCallback(async (panVatNumber) => {
+    if (!shop) throw new Error("Create your local shop profile first.");
+    await saveLocalShopPanVatNumber(shop.id, panVatNumber);
+    await refresh();
+  }, [refresh, shop]);
 
   const saveProduct = useCallback(async (values, existing = null) => {
     if (!shop) throw new Error("Create your local shop profile first.");
@@ -268,12 +276,12 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     ready, shop, products, sales, dueSales, conflicts, cart, cartNotice, session, cloudConfigured,
     backupTime, backupInterval, lastBackupAt, syncStatus, syncMessage,
-    refresh, createShop, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow,
+    refresh, createShop, updateShopPanVatNumber, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow,
     updateBackupSchedule, resolveConflict,
   }), [
     ready, shop, products, sales, dueSales, conflicts, cart, cartNotice, session, backupTime, backupInterval,
     lastBackupAt, syncStatus, syncMessage, refresh, createShop, saveProduct, archiveProduct,
-    addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow, updateBackupSchedule, resolveConflict,
+    addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow, updateBackupSchedule, resolveConflict, updateShopPanVatNumber,
   ]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
