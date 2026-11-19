@@ -8,7 +8,7 @@ import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../../src/compo
 import { persistProductPhoto } from "../../src/lib/productImages";
 import { colors } from "../../src/theme";
 
-const blankForm = () => ({ name: "", sku: "", barcode: "", additionalBarcodes: [], category: "Drinks", unit: "unit", imageUrl: "", cloudImageUrl: "", costPrice: "", sellingPrice: "", stockQty: "", lowStockThreshold: "5" });
+const blankForm = () => ({ name: "", barcode: "", additionalBarcodes: [], category: "Drinks", unit: "unit", imageUrl: "", cloudImageUrl: "", costPrice: "", sellingPrice: "", stockQty: "", lowStockThreshold: "5" });
 const money = (value) => `Rs ${Number(value || 0).toLocaleString("en-IN")}`;
 
 function ProductField({ label, value, onChangeText, placeholder, keyboardType = "default", editable = true, autoCapitalize = "sentences" }) {
@@ -42,6 +42,7 @@ export default function ProductsScreen() {
   const [barcodeDraft, setBarcodeDraft] = useState("");
   const [dismissedBarcode, setDismissedBarcode] = useState("");
   const [cameraMode, setCameraMode] = useState(null);
+  const [barcodeCameraLocation, setBarcodeCameraLocation] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
@@ -54,7 +55,7 @@ export default function ProductsScreen() {
   const formValues = scannedFormActive ? { ...form, barcode: scannedBarcode } : form;
   const categories = useMemo(() => ["All", ...new Set(products.map((product) => product.category).filter(Boolean))], [products]);
   const filtered = useMemo(() => products.filter((product) => {
-    const matchesQuery = `${product.name} ${product.sku} ${product.barcodes?.join(" ") || product.barcode || ""}`.toLowerCase().includes(query.toLowerCase());
+    const matchesQuery = `${product.name} ${product.barcodes?.join(" ") || product.barcode || ""}`.toLowerCase().includes(query.toLowerCase());
     const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
     const stock = Number(product.stock_qty);
     const matchesStock = stockFilter === "All"
@@ -66,7 +67,6 @@ export default function ProductsScreen() {
   function beginEdit(product) {
     setForm({
       name: product.name,
-      sku: product.sku,
       barcode: product.barcode || "",
       additionalBarcodes: (product.barcodes || (product.barcode ? [product.barcode] : [])).filter((barcode) => barcode !== product.barcode),
       category: product.category,
@@ -98,7 +98,7 @@ export default function ProductsScreen() {
     return true;
   }
 
-  async function startCamera(nextMode) {
+  async function startCamera(nextMode, barcodeLocation = null) {
     setError("");
     try {
       const currentPermission = permission?.granted ? permission : await requestPermission();
@@ -108,6 +108,7 @@ export default function ProductsScreen() {
       }
       scanHandled.current = false;
       setCameraReady(false);
+      setBarcodeCameraLocation(barcodeLocation);
       setCameraMode(nextMode);
     } catch (reason) {
       setError(reason.message || "Could not open the camera.");
@@ -151,7 +152,44 @@ export default function ProductsScreen() {
   }
 
   function startBarcodeCamera() {
-    return startCamera(formValues.barcode.trim() ? "additionalBarcode" : "barcode");
+    return startCamera(formValues.barcode.trim() ? "additionalBarcode" : "barcode", "primary");
+  }
+
+  function renderBarcodeCamera() {
+    if (!cameraMode || cameraMode === "photo") return null;
+
+    return (
+      <View style={styles.cameraPanel}>
+        <View style={styles.cameraPreview}>
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onCameraReady={() => setCameraReady(true)}
+            barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "qr"] }}
+            onBarcodeScanned={handleBarcodeScanned}
+            onMountError={({ message }) => { setCameraMode(null); setError(`Camera could not start: ${message}`); }}
+          />
+          <View pointerEvents="none" style={styles.scannerOverlay}>
+            <View style={styles.scannerTitle}>
+              <ScanLine size={15} color="white" />
+              <Text style={styles.scannerTitleText}>Barcode scanner</Text>
+            </View>
+            <View style={styles.scannerFrame}>
+              <View style={[styles.scannerCorner, styles.scannerCornerTL]} />
+              <View style={[styles.scannerCorner, styles.scannerCornerTR]} />
+              <View style={[styles.scannerCorner, styles.scannerCornerBL]} />
+              <View style={[styles.scannerCorner, styles.scannerCornerBR]} />
+              <View style={styles.scannerLine} />
+            </View>
+            <Text style={styles.scanHint}>Align the barcode inside the frame</Text>
+          </View>
+        </View>
+        <Pressable onPress={() => setCameraMode(null)} style={styles.cameraCancel}>
+          <Text style={styles.link}>Cancel scanner</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   const cameraControls = (
@@ -168,7 +206,7 @@ export default function ProductsScreen() {
           </Pressable>
         </View>
       </View>
-      {cameraMode ? (
+      {cameraMode === "photo" ? (
         <View style={styles.cameraPanel}>
           <View style={styles.cameraPreview}>
             <CameraView
@@ -176,30 +214,10 @@ export default function ProductsScreen() {
               style={StyleSheet.absoluteFill}
               facing="back"
               onCameraReady={() => setCameraReady(true)}
-              barcodeScannerSettings={cameraMode !== "photo" ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "qr"] } : undefined}
-              onBarcodeScanned={cameraMode !== "photo" ? handleBarcodeScanned : undefined}
               onMountError={({ message }) => { setCameraMode(null); setError(`Camera could not start: ${message}`); }}
             />
-            {cameraMode !== "photo" ? (
-              <View pointerEvents="none" style={styles.scannerOverlay}>
-                <View style={styles.scannerTitle}>
-                  <ScanLine size={15} color="white" />
-                  <Text style={styles.scannerTitleText}>Barcode scanner</Text>
-                </View>
-                <View style={styles.scannerFrame}>
-                  <View style={[styles.scannerCorner, styles.scannerCornerTL]} />
-                  <View style={[styles.scannerCorner, styles.scannerCornerTR]} />
-                  <View style={[styles.scannerCorner, styles.scannerCornerBL]} />
-                  <View style={[styles.scannerCorner, styles.scannerCornerBR]} />
-                  <View style={styles.scannerLine} />
-                </View>
-                <Text style={styles.scanHint}>Align the barcode inside the frame</Text>
-              </View>
-            ) : null}
           </View>
-          {cameraMode === "photo" ? (
-            <PrimaryButton title={cameraBusy ? "Saving photo…" : cameraReady ? "Capture photo" : "Opening camera…"} onPress={captureProductPhoto} disabled={cameraBusy || !cameraReady} style={styles.cameraAction} />
-          ) : null}
+          <PrimaryButton title={cameraBusy ? "Saving photo…" : cameraReady ? "Capture photo" : "Opening camera…"} onPress={captureProductPhoto} disabled={cameraBusy || !cameraReady} style={styles.cameraAction} />
           <Pressable onPress={() => setCameraMode(null)} style={styles.cameraCancel}><Text style={styles.link}>Cancel camera</Text></Pressable>
         </View>
       ) : null}
@@ -277,9 +295,9 @@ export default function ProductsScreen() {
                 <ProductField label="Unit" value={form.unit} onChangeText={(unit) => setForm({ ...form, unit })} placeholder="e.g. piece, pack, kg" />
               </Surface>
               <Surface style={styles.formSection}>
-                <SectionHeading icon={ScanLine} title="Item codes (optional)" subtitle="Use a barcode to find this item faster at checkout." />
-                <ProductField label="SKU *" value={form.sku} onChangeText={(sku) => setForm({ ...form, sku })} placeholder="e.g. CC001" autoCapitalize="characters" />
+                <SectionHeading icon={ScanLine} title="Barcode (optional)" subtitle="Add a barcode to find this item faster at checkout." />
                 <ProductField label="Primary barcode" value={formValues.barcode} onChangeText={(barcode) => { setDismissedBarcode(scannedBarcode); setForm({ ...form, barcode }); }} placeholder="Enter or scan barcode" autoCapitalize="characters" />
+                {barcodeCameraLocation === "primary" ? renderBarcodeCamera() : null}
                 <Pressable style={styles.scanFieldButton} onPress={startBarcodeCamera}>
                   <ScanLine size={15} color={colors.red} strokeWidth={2} />
                   <Text style={styles.secondaryButtonText}>{formValues.barcode ? "Scan another barcode" : "Scan barcode"}</Text>
@@ -301,6 +319,7 @@ export default function ProductsScreen() {
                       <Plus size={16} color="white" />
                     </Pressable>
                   </View>
+                  {barcodeCameraLocation === "additional" ? renderBarcodeCamera() : null}
                   <Text style={styles.barcodeHint}>Every barcode identifies this same product and shares its stock count.</Text>
                   {form.additionalBarcodes.length > 0 ? (
                     <View style={styles.barcodeChips}>
@@ -319,7 +338,7 @@ export default function ProductsScreen() {
                       ))}
                     </View>
                   ) : null}
-                  <Pressable style={styles.scanAliasButton} onPress={() => startCamera("additionalBarcode")} accessibilityRole="button">
+                  <Pressable style={styles.scanAliasButton} onPress={() => startCamera("additionalBarcode", "additional")} accessibilityRole="button">
                     <ScanLine size={14} color={colors.red} />
                     <Text style={styles.secondaryButtonText}>Scan an additional barcode</Text>
                   </Pressable>
@@ -365,7 +384,7 @@ export default function ProductsScreen() {
             return <Pressable key={product.id} style={styles.productCard} onPress={() => beginEdit(product)}>
               <View style={styles.productArt}>{product.image_url ? <Image source={{ uri: product.image_url }} style={styles.productImage} /> : <Package size={28} color={colors.red} strokeWidth={1.8} />}</View>
               <Text numberOfLines={1} style={styles.productName}>{product.name}</Text>
-              <Text numberOfLines={1} style={styles.muted}>{product.category} · {product.sku}</Text>
+              <Text numberOfLines={1} style={styles.muted}>{product.category}</Text>
               <View style={styles.productMeta}><Text style={styles.price}>{money(product.selling_price)}</Text><Text style={[styles.stockBadge, low && styles.lowStockBadge, stock <= 0 && styles.outStockBadge]}>{stock <= 0 ? "Out of stock" : low ? "Low stock" : `${stock} in stock`}</Text></View>
             </Pressable>;
           })}</View>

@@ -19,10 +19,10 @@ export default function ScannerScreen() {
   function lookup(code) {
     const normalizedCode = code.trim();
     if (!normalizedCode) {
-      setMessage("Enter a barcode or SKU to search.");
+      setMessage("Enter a barcode to search.");
       return;
     }
-    const product = products.find((item) => item.barcodes?.includes(normalizedCode) || item.barcode === normalizedCode || item.sku.toLowerCase() === normalizedCode.toLowerCase());
+    const product = products.find((item) => item.barcodes?.includes(normalizedCode) || item.barcode === normalizedCode);
     if (!product) {
       setValue(code);
       setMessage("Product not found. Search your inventory or add it.");
@@ -48,7 +48,7 @@ export default function ScannerScreen() {
         setMessage("Camera permission is unavailable. You can still enter the barcode manually.");
       }
     } catch (reason) {
-      setMessage(reason.message || "Could not request camera access. Enter the barcode or SKU manually.");
+      setMessage(reason.message || "Could not request camera access. Enter the barcode manually.");
     }
   }
 
@@ -71,8 +71,8 @@ export default function ScannerScreen() {
       </View>
       {!scanning ? <PrimaryButton title={permission?.granted ? "Start camera scan" : "Allow camera and scan"} onPress={startScanning} style={styles.cameraButton} /> : <Pressable style={styles.stopButton} onPress={() => { setScanning(false); handledRef.current = false; setHandled(false); }}><Text style={styles.stopText}>Stop scanning</Text></Pressable>}
       <Surface style={styles.manualCard}>
-        <Text style={styles.manualTitle}>Enter barcode or SKU manually</Text>
-        <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={value} onChangeText={(text) => { setValue(text); setMessage(""); handledRef.current = false; setHandled(false); }} onSubmitEditing={() => lookup(value)} placeholder="Barcode or SKU" autoCapitalize="characters" style={styles.input} accessibilityLabel="Barcode or SKU" returnKeyType="search" /></View>
+        <Text style={styles.manualTitle}>Enter a barcode manually</Text>
+        <View style={styles.searchBox}><Search size={17} color="#858c95" strokeWidth={2} /><TextInput value={value} onChangeText={(text) => { setValue(text); setMessage(""); handledRef.current = false; setHandled(false); }} onSubmitEditing={() => lookup(value)} placeholder="Barcode" autoCapitalize="characters" style={styles.input} accessibilityLabel="Barcode" returnKeyType="search" /></View>
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <PrimaryButton title="Find product" onPress={() => lookup(value)} />
         {message.startsWith("Product not found") ? <Pressable style={styles.addProduct} onPress={() => { router.replace({ pathname: "/(tabs)/products", params: { barcode: value } }); }}><Plus size={14} color={colors.red} strokeWidth={2.5} /><Text style={styles.link}>Add this product</Text></Pressable> : null}

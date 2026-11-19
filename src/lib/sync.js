@@ -242,11 +242,11 @@ async function pullCloudData(shopId, cloudShopId) {
 
     await db.runAsync(
       `INSERT INTO products
-        (id, shop_id, name, sku, barcode, category, unit, image_url, cloud_image_url, cost_price, selling_price,
+        (id, shop_id, name, barcode, category, unit, image_url, cloud_image_url, cost_price, selling_price,
          stock_qty, low_stock_threshold, active, version, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name, sku = excluded.sku, barcode = excluded.barcode,
+         name = excluded.name, barcode = excluded.barcode,
          category = excluded.category, unit = excluded.unit, image_url = excluded.image_url,
          cloud_image_url = excluded.cloud_image_url, cost_price = excluded.cost_price,
          selling_price = excluded.selling_price, stock_qty = excluded.stock_qty,
@@ -255,7 +255,6 @@ async function pullCloudData(shopId, cloudShopId) {
       remote.id,
       shopId,
       remote.name,
-      remote.sku,
       remote.barcode,
       remote.category || "Others",
       remote.unit,
@@ -324,13 +323,12 @@ async function pullCloudData(shopId, cloudShopId) {
     if (!localSale) for (const line of sale.sale_items || []) {
       await db.runAsync(
         `INSERT OR IGNORE INTO sale_items
-          (id, sale_id, product_id, name_snapshot, sku_snapshot, quantity, unit_price, unit_cost, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, sale_id, product_id, name_snapshot, quantity, unit_price, unit_cost, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         line.id,
         localSaleId,
         line.product_id || "",
         line.product_name_snapshot,
-        line.sku_snapshot,
         line.quantity,
         line.unit_price,
         line.unit_cost_snapshot,
@@ -486,11 +484,10 @@ export async function resolveProductConflict(conflict, strategy) {
       : null;
     await db.withTransactionAsync(async () => {
       await db.runAsync(
-        `UPDATE products SET name = ?, sku = ?, barcode = ?, category = ?, unit = ?,
+        `UPDATE products SET name = ?, barcode = ?, category = ?, unit = ?,
           image_url = ?, cloud_image_url = ?, cost_price = ?, selling_price = ?, stock_qty = ?,
           low_stock_threshold = ?, active = ?, version = ?, updated_at = ? WHERE id = ? AND shop_id = ?`,
         server.name,
-        server.sku,
         server.barcode,
         server.category || "Others",
         server.unit,

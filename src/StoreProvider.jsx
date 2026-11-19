@@ -151,8 +151,8 @@ export function StoreProvider({ children }) {
 
   const saveProduct = useCallback(async (values, existing = null) => {
     if (!shop) throw new Error("Create your local shop profile first.");
-    if (!values.name?.trim() || !values.sku?.trim() || Number(values.sellingPrice) <= 0) {
-      throw new Error("Product name, SKU, and a valid selling price are required.");
+    if (!values.name?.trim() || Number(values.sellingPrice) <= 0) {
+      throw new Error("Product name and a valid selling price are required.");
     }
     await saveProductLocal(
       shop.id,

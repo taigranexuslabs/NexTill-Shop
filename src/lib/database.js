@@ -2,6 +2,16 @@ import * as SQLite from "expo-sqlite";
 
 let databasePromise;
 
+function stripSkuFields(value) {
+  if (Array.isArray(value)) return value.map(stripSkuFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "sku" && key !== "sku_snapshot")
+      .map(([key, item]) => [key, stripSkuFields(item)]),
+  );
+}
+
 export async function getDatabase() {
   if (!databasePromise) {
     databasePromise = SQLite.openDatabaseAsync("nextill-shop.db").then(async (db) => {
@@ -21,7 +31,6 @@ export async function getDatabase() {
           id TEXT PRIMARY KEY NOT NULL,
           shop_id TEXT NOT NULL,
           name TEXT NOT NULL,
-          sku TEXT NOT NULL,
           barcode TEXT,
           category TEXT NOT NULL DEFAULT 'Others',
           unit TEXT NOT NULL DEFAULT 'unit',
@@ -33,8 +42,7 @@ export async function getDatabase() {
           low_stock_threshold REAL NOT NULL DEFAULT 0 CHECK (low_stock_threshold >= 0),
           active INTEGER NOT NULL DEFAULT 1,
           version INTEGER NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL,
-          UNIQUE(shop_id, sku)
+          updated_at TEXT NOT NULL
         );
         CREATE UNIQUE INDEX IF NOT EXISTS products_barcode_unique
           ON products(shop_id, barcode) WHERE barcode IS NOT NULL AND active = 1;
@@ -73,7 +81,6 @@ export async function getDatabase() {
           sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
           product_id TEXT NOT NULL,
           name_snapshot TEXT NOT NULL,
-          sku_snapshot TEXT NOT NULL,
           quantity REAL NOT NULL CHECK (quantity > 0),
           unit_price REAL NOT NULL CHECK (unit_price >= 0),
           unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
@@ -124,6 +131,95 @@ export async function getDatabase() {
       }
       if (!productColumns.some((column) => column.name === "cloud_image_url")) {
         await db.execAsync("ALTER TABLE products ADD COLUMN cloud_image_url TEXT");
+      }
+      const currentProductColumns = await db.getAllAsync("PRAGMA table_info(products)");
+      const saleItemColumns = await db.getAllAsync("PRAGMA table_info(sale_items)");
+      const productHasSku = currentProductColumns.some((column) => column.name === "sku");
+      const saleItemHasSkuSnapshot = saleItemColumns.some((column) => column.name === "sku_snapshot");
+      if (productHasSku || saleItemHasSkuSnapshot) {
+        await db.execAsync("PRAGMA foreign_keys = OFF");
+        try {
+          await db.withTransactionAsync(async () => {
+            if (productHasSku) {
+              await db.execAsync(`
+                CREATE TABLE products_without_sku (
+                  id TEXT PRIMARY KEY NOT NULL,
+                  shop_id TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  barcode TEXT,
+                  category TEXT NOT NULL DEFAULT 'Others',
+                  unit TEXT NOT NULL DEFAULT 'unit',
+                  image_url TEXT,
+                  cloud_image_url TEXT,
+                  cost_price REAL NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
+                  selling_price REAL NOT NULL CHECK (selling_price >= 0),
+                  stock_qty REAL NOT NULL DEFAULT 0 CHECK (stock_qty >= 0),
+                  low_stock_threshold REAL NOT NULL DEFAULT 0 CHECK (low_stock_threshold >= 0),
+                  active INTEGER NOT NULL DEFAULT 1,
+                  version INTEGER NOT NULL DEFAULT 0,
+                  updated_at TEXT NOT NULL
+                );
+                INSERT INTO products_without_sku
+                  (id, shop_id, name, barcode, category, unit, image_url, cloud_image_url,
+                   cost_price, selling_price, stock_qty, low_stock_threshold, active, version, updated_at)
+                SELECT id, shop_id, name, barcode, category, unit, image_url, cloud_image_url,
+                  cost_price, selling_price, stock_qty, low_stock_threshold, active, version, updated_at
+                FROM products;
+                DROP TABLE products;
+                ALTER TABLE products_without_sku RENAME TO products;
+                CREATE UNIQUE INDEX products_barcode_unique
+                  ON products(shop_id, barcode) WHERE barcode IS NOT NULL AND active = 1;
+              `);
+            }
+            if (saleItemHasSkuSnapshot) {
+              await db.execAsync(`
+                CREATE TABLE sale_items_without_sku (
+                  id TEXT PRIMARY KEY NOT NULL,
+                  sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+                  product_id TEXT NOT NULL,
+                  name_snapshot TEXT NOT NULL,
+                  quantity REAL NOT NULL CHECK (quantity > 0),
+                  unit_price REAL NOT NULL CHECK (unit_price >= 0),
+                  unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
+                  line_total REAL NOT NULL CHECK (line_total >= 0)
+                );
+                INSERT INTO sale_items_without_sku
+                  (id, sale_id, product_id, name_snapshot, quantity, unit_price, unit_cost, line_total)
+                SELECT id, sale_id, product_id, name_snapshot, quantity, unit_price, unit_cost, line_total
+                FROM sale_items;
+                DROP TABLE sale_items;
+                ALTER TABLE sale_items_without_sku RENAME TO sale_items;
+              `);
+            }
+
+            const queuedRows = await db.getAllAsync("SELECT id, payload FROM outbox");
+            for (const row of queuedRows) {
+              const payload = JSON.stringify(stripSkuFields(JSON.parse(row.payload)));
+              if (payload !== row.payload) {
+                await db.runAsync("UPDATE outbox SET payload = ? WHERE id = ?", payload, row.id);
+              }
+            }
+            const conflictRows = await db.getAllAsync(
+              "SELECT id, local_payload, server_payload FROM sync_conflicts",
+            );
+            for (const row of conflictRows) {
+              const localPayload = JSON.stringify(stripSkuFields(JSON.parse(row.local_payload)));
+              const serverPayload = row.server_payload === null
+                ? null
+                : JSON.stringify(stripSkuFields(JSON.parse(row.server_payload)));
+              if (localPayload !== row.local_payload || serverPayload !== row.server_payload) {
+                await db.runAsync(
+                  "UPDATE sync_conflicts SET local_payload = ?, server_payload = ? WHERE id = ?",
+                  localPayload,
+                  serverPayload,
+                  row.id,
+                );
+              }
+            }
+          });
+        } finally {
+          await db.execAsync("PRAGMA foreign_keys = ON");
+        }
       }
       const saleColumns = await db.getAllAsync("PRAGMA table_info(sales)");
       if (!saleColumns.some((column) => column.name === "customer_phone")) {
@@ -292,7 +388,6 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
     id,
     shop_id: shopId,
     name: values.name.trim(),
-    sku: values.sku.trim(),
     barcode: barcodes[0] || null,
     barcodes,
     category: values.category || "Others",
@@ -329,12 +424,11 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
         ? existing.cloud_image_url
         : null;
       await db.runAsync(
-        `UPDATE products SET name = ?, sku = ?, barcode = ?, category = ?, unit = ?,
+        `UPDATE products SET name = ?, barcode = ?, category = ?, unit = ?,
           image_url = ?, cloud_image_url = ?, cost_price = ?, selling_price = ?,
           low_stock_threshold = ?, updated_at = ?
          WHERE id = ? AND shop_id = ?`,
         product.name,
-        product.sku,
         product.barcode,
         product.category,
         product.unit,
@@ -350,13 +444,12 @@ export async function saveProductLocal(shopId, values, productId, expectedVersio
     } else {
       await db.runAsync(
         `INSERT INTO products
-          (id, shop_id, name, sku, barcode, category, unit, image_url, cloud_image_url, cost_price, selling_price,
+          (id, shop_id, name, barcode, category, unit, image_url, cloud_image_url, cost_price, selling_price,
            stock_qty, low_stock_threshold, active, version, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, 0, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, 0, ?)`,
         product.id,
         product.shop_id,
         product.name,
-        product.sku,
         product.barcode,
         product.category,
         product.unit,
@@ -560,13 +653,12 @@ export async function recordSaleLocal(
       const updatedStock = Number(product.stock_qty) - quantity;
       await db.runAsync(
         `INSERT INTO sale_items
-          (id, sale_id, product_id, name_snapshot, sku_snapshot, quantity, unit_price, unit_cost, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, sale_id, product_id, name_snapshot, quantity, unit_price, unit_cost, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         itemId,
         saleId,
         product.id,
         product.name,
-        product.sku,
         quantity,
         product.selling_price,
         product.cost_price,
