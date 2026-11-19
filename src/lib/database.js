@@ -60,6 +60,7 @@ export async function getDatabase() {
           total REAL NOT NULL,
           amount_received REAL NOT NULL,
           change_due REAL NOT NULL DEFAULT 0,
+          outstanding_amount REAL NOT NULL DEFAULT 0,
           payment_method TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending_sync',
           created_at TEXT NOT NULL,
@@ -76,6 +77,16 @@ export async function getDatabase() {
           unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
           line_total REAL NOT NULL CHECK (line_total >= 0)
         );
+        CREATE TABLE IF NOT EXISTS sale_payments (
+          id TEXT PRIMARY KEY NOT NULL,
+          shop_id TEXT NOT NULL,
+          sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+          amount REAL NOT NULL CHECK (amount > 0),
+          payment_method TEXT NOT NULL,
+          paid_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS sale_payments_sale_idx
+          ON sale_payments(shop_id, sale_id, paid_at);
         CREATE TABLE IF NOT EXISTS outbox (
           id TEXT PRIMARY KEY NOT NULL,
           shop_id TEXT NOT NULL,
@@ -112,6 +123,21 @@ export async function getDatabase() {
       if (!productColumns.some((column) => column.name === "cloud_image_url")) {
         await db.execAsync("ALTER TABLE products ADD COLUMN cloud_image_url TEXT");
       }
+      const saleColumns = await db.getAllAsync("PRAGMA table_info(sales)");
+      if (!saleColumns.some((column) => column.name === "outstanding_amount")) {
+        await db.execAsync(`
+          ALTER TABLE sales ADD COLUMN outstanding_amount REAL NOT NULL DEFAULT 0;
+          UPDATE sales
+          SET outstanding_amount = MAX(0, total - MIN(total, MAX(0, amount_received - change_due)));
+        `);
+      }
+      await db.execAsync(`
+        INSERT OR IGNORE INTO sale_payments (id, shop_id, sale_id, amount, payment_method, paid_at)
+        SELECT id || ':initial', shop_id, id,
+          MIN(total, MAX(0, amount_received - change_due)), payment_method, created_at
+        FROM sales
+        WHERE MIN(total, MAX(0, amount_received - change_due)) > 0;
+      `);
       await db.runAsync(
         `INSERT OR IGNORE INTO product_barcodes (shop_id, product_id, barcode, active)
          SELECT shop_id, id, barcode, active
@@ -191,6 +217,10 @@ export async function readSales(shopId, limit = 100) {
   for (const sale of sales) {
     sale.items = await db.getAllAsync(
       "SELECT * FROM sale_items WHERE sale_id = ? ORDER BY rowid",
+      sale.id,
+    );
+    sale.payments = await db.getAllAsync(
+      "SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY paid_at, rowid",
       sale.id,
     );
   }
@@ -417,19 +447,20 @@ export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceive
 
     if (discount < 0 || discount > subtotal) throw new Error("Discount must be between zero and the subtotal.");
     const total = Math.max(0, subtotal - discount + tax);
-    if (paymentMethod === "cash" && amountReceived < total) {
-      throw new Error("Amount received must cover the total.");
+    if (!Number.isFinite(amountReceived) || amountReceived < 0) {
+      throw new Error("Amount received must be zero or more.");
     }
-    if (paymentMethod !== "cash" && amountReceived !== total) {
-      throw new Error("Digital payment amount must match the sale total.");
+    if (paymentMethod !== "cash" && amountReceived > total) {
+      throw new Error("Amount received cannot exceed the sale total for this payment method.");
     }
 
     const invoiceNo = `LOCAL-${saleId.slice(-8).toUpperCase()}`;
+    const paidAmount = Math.min(amountReceived, total);
     await db.runAsync(
       `INSERT INTO sales
         (id, shop_id, invoice_no, customer_name, subtotal, discount, tax, total, amount_received,
-         change_due, payment_method, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
+         change_due, outstanding_amount, payment_method, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_sync', ?)`,
       saleId,
       shopId,
       invoiceNo,
@@ -440,9 +471,23 @@ export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceive
       total,
       amountReceived,
       Math.max(0, amountReceived - total),
+      total - paidAmount,
       paymentMethod,
       now,
     );
+
+    if (paidAmount > 0) {
+      await db.runAsync(
+        `INSERT INTO sale_payments (id, shop_id, sale_id, amount, payment_method, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        `${saleId}:initial`,
+        shopId,
+        saleId,
+        paidAmount,
+        paymentMethod,
+        now,
+      );
+    }
 
     for (const { product, quantity, lineTotal } of saleItems) {
       const itemId = `${saleId}:${product.id}`;
@@ -492,6 +537,48 @@ export async function recordSaleLocal(shopId, cart, paymentMethod, amountReceive
     );
   });
   return db.getFirstAsync("SELECT * FROM sales WHERE id = ?", saleId);
+}
+
+export async function recordSalePaymentLocal(shopId, saleId, paymentId, amount, paymentMethod) {
+  const db = await getDatabase();
+  const validMethods = ["cash", "esewa", "khalti", "bank_transfer", "other"];
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Payment must be greater than zero.");
+  }
+  if (!validMethods.includes(paymentMethod)) {
+    throw new Error("Choose a valid payment method.");
+  }
+
+  await db.withTransactionAsync(async () => {
+    const sale = await db.getFirstAsync(
+      "SELECT outstanding_amount FROM sales WHERE id = ? AND shop_id = ?",
+      saleId,
+      shopId,
+    );
+    if (!sale) throw new Error("This sale could not be found.");
+    const outstanding = Number(sale.outstanding_amount);
+    if (outstanding <= 0) throw new Error("This sale has no outstanding balance.");
+    if (amount > outstanding) {
+      throw new Error(`Payment cannot exceed the remaining balance of Rs ${outstanding.toLocaleString("en-IN")}.`);
+    }
+    const remaining = Math.max(0, outstanding - amount);
+    await db.runAsync(
+      "UPDATE sales SET outstanding_amount = ? WHERE id = ? AND shop_id = ?",
+      remaining,
+      saleId,
+      shopId,
+    );
+    await db.runAsync(
+      `INSERT INTO sale_payments (id, shop_id, sale_id, amount, payment_method, paid_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      paymentId,
+      shopId,
+      saleId,
+      amount,
+      paymentMethod,
+      new Date().toISOString(),
+    );
+  });
 }
 
 export async function listConflicts(shopId) {

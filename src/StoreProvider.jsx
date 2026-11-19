@@ -10,6 +10,7 @@ import {
   archiveProductLocal,
   readProducts,
   readSales,
+  recordSalePaymentLocal,
   recordSaleLocal,
   saveLocalShop,
   saveProductLocal,
@@ -206,6 +207,12 @@ export function StoreProvider({ children }) {
     return sale;
   }, [refresh, shop]);
 
+  const recordSalePayment = useCallback(async (saleId, amount, paymentMethod) => {
+    if (!shop) throw new Error("Create your local shop profile first.");
+    await recordSalePaymentLocal(shop.id, saleId, Crypto.randomUUID(), Number(amount), paymentMethod);
+    await refresh();
+  }, [refresh, shop]);
+
   const signIn = useCallback(async (email, password, createAccount = false) => {
     if (!cloudConfigured || !supabase) {
       throw new Error("Configure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in mobile/.env first.");
@@ -246,12 +253,12 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     ready, shop, products, sales, conflicts, cart, cartNotice, session, cloudConfigured,
     backupTime, backupInterval, lastBackupAt, syncStatus, syncMessage,
-    refresh, createShop, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, signIn, syncNow,
+    refresh, createShop, saveProduct, archiveProduct, addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow,
     updateBackupSchedule, resolveConflict,
   }), [
     ready, shop, products, sales, conflicts, cart, cartNotice, session, backupTime, backupInterval,
     lastBackupAt, syncStatus, syncMessage, refresh, createShop, saveProduct, archiveProduct,
-    addToCart, changeCartQuantity, completeSale, signIn, syncNow, updateBackupSchedule, resolveConflict,
+    addToCart, changeCartQuantity, completeSale, recordSalePayment, signIn, syncNow, updateBackupSchedule, resolveConflict,
   ]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

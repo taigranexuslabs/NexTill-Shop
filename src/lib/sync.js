@@ -294,6 +294,10 @@ async function pullCloudData(shopId, cloudShopId) {
   throwOnError(salesError, "Download sales");
 
   for (const sale of remoteSales || []) {
+    const paidAmount = Math.min(
+      Number(sale.total),
+      Math.max(0, Number(sale.amount_received) - Number(sale.change_due || 0)),
+    );
     const localSale = sale.request_id
       ? await db.getFirstAsync("SELECT id FROM sales WHERE id = ? AND shop_id = ?", sale.request_id, shopId)
       : null;
@@ -301,8 +305,8 @@ async function pullCloudData(shopId, cloudShopId) {
     await db.runAsync(
       `INSERT OR IGNORE INTO sales
         (id, shop_id, invoice_no, customer_name, subtotal, discount, tax, total,
-         amount_received, change_due, payment_method, status, created_at, note)
-       VALUES (?, ?, ?, 'Walk-in Customer', ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?)`,
+         amount_received, change_due, outstanding_amount, payment_method, status, created_at, note)
+       VALUES (?, ?, ?, 'Walk-in Customer', ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?)`,
       localSaleId,
       shopId,
       `INV-${String(sale.invoice_number).padStart(6, "0")}`,
@@ -312,6 +316,7 @@ async function pullCloudData(shopId, cloudShopId) {
       sale.total,
       sale.amount_received,
       sale.change_due,
+      Number(sale.total) - paidAmount,
       sale.payment_method,
       sale.created_at,
       sale.note,
@@ -330,6 +335,18 @@ async function pullCloudData(shopId, cloudShopId) {
         line.unit_price,
         line.unit_cost_snapshot,
         line.line_total,
+      );
+    }
+    if (!localSale && paidAmount > 0) {
+      await db.runAsync(
+        `INSERT OR IGNORE INTO sale_payments (id, shop_id, sale_id, amount, payment_method, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        `${localSaleId}:initial`,
+        shopId,
+        localSaleId,
+        paidAmount,
+        sale.payment_method,
+        sale.created_at,
       );
     }
   }
@@ -368,16 +385,30 @@ async function performSync() {
      ORDER BY s.created_at DESC`,
     shop.id,
   );
+  const salePayments = await db.getAllAsync(
+    "SELECT * FROM sale_payments WHERE shop_id = ? ORDER BY paid_at",
+    shop.id,
+  );
   const itemsBySale = new Map();
+  const paymentsBySale = new Map();
   for (const item of saleItems) {
     const items = itemsBySale.get(item.sale_id) || [];
     items.push(item);
     itemsBySale.set(item.sale_id, items);
   }
-  const salesWithItems = sales.map((sale) => ({ ...sale, items: itemsBySale.get(sale.id) || [] }));
+  for (const payment of salePayments) {
+    const payments = paymentsBySale.get(payment.sale_id) || [];
+    payments.push(payment);
+    paymentsBySale.set(payment.sale_id, payments);
+  }
+  const salesWithItems = sales.map((sale) => ({
+    ...sale,
+    items: itemsBySale.get(sale.id) || [],
+    payments: paymentsBySale.get(sale.id) || [],
+  }));
   const pending = await db.getAllAsync("SELECT * FROM outbox WHERE shop_id = ?", shop.id);
   const settings = await db.getAllAsync("SELECT key, value FROM local_settings");
-  const payload = { schemaVersion: 1, shop, products, sales: salesWithItems, pending, settings, backedUpAt: new Date().toISOString() };
+  const payload = { schemaVersion: 2, shop, products, sales: salesWithItems, pending, settings, backedUpAt: new Date().toISOString() };
   const { data: backupId, error: backupError } = await supabase.rpc("save_backup_snapshot", {
     p_shop_id: cloudShopId,
     p_device_id: deviceId,

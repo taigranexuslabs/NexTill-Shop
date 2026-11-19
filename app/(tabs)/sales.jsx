@@ -50,7 +50,7 @@ export default function SalesScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroller} contentContainerStyle={styles.filterContent}>{["All", "Today", "7 days"].map((filter) => <Pressable key={filter} onPress={() => setDateFilter(filter)} style={[styles.filterChip, dateFilter === filter && styles.filterChipActive]}><Text style={[styles.filterText, dateFilter === filter && styles.filterTextActive]}>{filter}</Text></Pressable>)}</ScrollView>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroller} contentContainerStyle={styles.filterContent}>{methods.map((method) => <Pressable key={method} onPress={() => setMethodFilter(method)} style={[styles.filterChip, methodFilter === method && styles.filterChipActive]}><Text style={[styles.filterText, methodFilter === method && styles.filterTextActive]}>{method === "All" ? "All payments" : paymentLabel(method)}</Text></Pressable>)}</ScrollView>
       <Text style={styles.listMeta}>{list.length} transactions · Saved locally and backed up when online</Text>
-      {list.map((sale) => <Pressable key={sale.id} onPress={() => setSelectedId(sale.id)} style={styles.saleRow}><View style={styles.icon}><ReceiptText size={17} color={colors.red} strokeWidth={1.9} /></View><View style={styles.saleDetail}><Text style={styles.invoice}>{sale.invoice_no}</Text><Text style={styles.subtle}>{new Date(sale.created_at).toLocaleString()} · {sale.customer_name || "Walk-in Customer"}</Text><Text style={[styles.status, sale.status === "synced" ? styles.synced : styles.pending]}>{sale.status === "synced" ? "Backed up" : "Pending backup"}</Text></View><View style={styles.amount}><Text style={styles.total}>{money(sale.total)}</Text><Text style={styles.subtle}>{paymentLabel(sale.payment_method)}</Text></View><ChevronRight size={17} color="#9da3ab" /></Pressable>)}
+      {list.map((sale) => <Pressable key={sale.id} onPress={() => setSelectedId(sale.id)} style={styles.saleRow}><View style={styles.icon}><ReceiptText size={17} color={colors.red} strokeWidth={1.9} /></View><View style={styles.saleDetail}><Text style={styles.invoice}>{sale.invoice_no}</Text><Text style={styles.subtle}>{new Date(sale.created_at).toLocaleString()} · {sale.customer_name || "Walk-in Customer"}</Text><Text style={[styles.status, sale.status === "synced" ? styles.synced : styles.pending]}>{sale.status === "synced" ? "Backed up" : "Pending backup"}</Text>{Number(sale.outstanding_amount) > 0 ? <Text style={styles.dueStatus}>Due {money(sale.outstanding_amount)}</Text> : null}</View><View style={styles.amount}><Text style={styles.total}>{money(sale.total)}</Text><Text style={styles.subtle}>{paymentLabel(sale.payment_method)}</Text></View><ChevronRight size={17} color="#9da3ab" /></Pressable>)}
       {list.length === 0 && <Surface style={styles.empty}><Text style={styles.emptyTitle}>{sales.length ? "No sales match these filters" : "No sales yet"}</Text><Text style={styles.subtle}>{sales.length ? "Try another date range or payment method." : "Complete a sale to create your first invoice."}</Text>{sales.length ? <Pressable style={styles.clearFilters} onPress={() => { setSearch(""); setDateFilter("All"); setMethodFilter("All"); }}><Text style={styles.clearFiltersText}>Clear filters</Text></Pressable> : <PrimaryButton title="Start a sale" onPress={() => router.push("/(tabs)/sale")} />}</Surface>}
       <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={closeInvoice}>
         <Pressable style={styles.backdrop} onPress={closeInvoice}>
@@ -72,9 +72,12 @@ export default function SalesScreen() {
                 <View style={styles.totalLine}><Text style={styles.subtle}>Subtotal</Text><Text style={styles.total}>{money(selected.subtotal)}</Text></View>
                 {Number(selected.discount) > 0 ? <View style={styles.totalLine}><Text style={styles.subtle}>Discount</Text><Text style={styles.total}>− {money(selected.discount)}</Text></View> : null}
                 {Number(selected.tax) > 0 ? <View style={styles.totalLine}><Text style={styles.subtle}>Tax</Text><Text style={styles.total}>{money(selected.tax)}</Text></View> : null}
-                <View style={styles.line}><Text style={styles.productName}>Total paid</Text><Text style={styles.modalTotal}>{money(selected.total)}</Text></View>
+                <View style={styles.line}><Text style={styles.productName}>Sale total</Text><Text style={styles.modalTotal}>{money(selected.total)}</Text></View>
+                <View style={styles.line}><Text style={styles.productName}>Paid so far</Text><Text style={styles.total}>{money(Number(selected.total) - Number(selected.outstanding_amount || 0))}</Text></View>
+                {Number(selected.outstanding_amount) > 0 ? <View style={styles.line}><Text style={styles.dueStatus}>Balance due</Text><Text style={styles.dueStatus}>{money(selected.outstanding_amount)}</Text></View> : null}
                 <Text style={styles.subtle}>Paid by {paymentLabel(selected.payment_method)} · Received {money(selected.amount_received)}</Text>
                 {Number(selected.change_due) > 0 ? <Text style={styles.subtle}>Change due {money(selected.change_due)}</Text> : null}
+                {(selected.payments || []).map((payment) => <View key={payment.id} style={styles.paymentRow}><Text style={styles.subtle}>{new Date(payment.paid_at).toLocaleString()} · {paymentLabel(payment.payment_method)}</Text><Text style={styles.total}>{money(payment.amount)}</Text></View>)}
               </>}
             </ScrollView>
           </Pressable>
@@ -102,6 +105,7 @@ const styles = StyleSheet.create({
   status: { marginTop: 4, fontSize: 9, fontWeight: "700" },
   synced: { color: colors.green },
   pending: { color: colors.amber },
+  dueStatus: { marginTop: 4, color: colors.red, fontSize: 9, fontWeight: "800" },
   amount: { alignItems: "flex-end" },
   total: { color: colors.ink, fontSize: 10, fontWeight: "800" },
   empty: { marginTop: 10, padding: 16 },
@@ -125,6 +129,7 @@ const styles = StyleSheet.create({
   line: { minHeight: 37, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   receiptItem: { flex: 1 },
   totalLine: { minHeight: 27, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  paymentRow: { minHeight: 30, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopColor: colors.line, borderTopWidth: 1 },
   productName: { color: colors.ink, fontSize: 11, fontWeight: "700" },
   modalTotal: { color: colors.ink, fontSize: 17, fontWeight: "900" },
 });

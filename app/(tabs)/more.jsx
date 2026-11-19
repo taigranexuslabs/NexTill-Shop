@@ -6,11 +6,12 @@ import { AppScreen, ScreenHeader, Surface } from "../../src/components/Screen";
 import { colors } from "../../src/theme";
 
 const links = [
-  { title: "Shop profile & backup", detail: "Shop details, account and sync", icon: Settings2, href: "/(tabs)/settings" },
+  { title: "Shop profile & backup", detail: "Shop details, account and sync", icon: Settings2, href: "/settings" },
   { title: "Reports & analytics", detail: "Sales and profit insights", icon: ChartNoAxesCombined, href: "/reports" },
-  { title: "Expenses", detail: "Track shop spending", icon: WalletCards, href: "/expenses" },
+  { title: "Expenses", detail: "Local list · not included in reports", icon: WalletCards, href: "/expenses" },
   { title: "Customers", detail: "View customer records", icon: Users, href: "/customers" },
-  { title: "Staff & employees", detail: "Manage team members", icon: UserRoundCog, href: "/staff" },
+  { title: "Due payments", detail: "Track balances and record payments", icon: WalletCards, href: "/due-payments" },
+  { title: "Staff & employees", detail: "Local directory · no staff accounts", icon: UserRoundCog, href: "/staff" },
 ];
 
 export default function MoreScreen() {

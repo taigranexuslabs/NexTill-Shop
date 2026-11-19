@@ -27,15 +27,22 @@ export default function CheckoutScreen() {
   const [error, setError] = useState("");
   const [completedSale, setCompletedSale] = useState(null);
   const parsedReceived = Number(receivedValue);
-  const cashInvalid = method === "cash" && (!Number.isFinite(parsedReceived) || parsedReceived < total);
+  const paymentInvalid = !Number.isFinite(parsedReceived) || parsedReceived < 0
+    || (method !== "cash" && parsedReceived > total);
 
   async function finishSale() {
     if (discountInvalid) {
       setError("Discount must be between zero and the subtotal.");
       return;
     }
-    if (method === "cash" && cashInvalid) {
-      setError("Amount received must cover the total.");
+    if (paymentInvalid) {
+      setError(method === "cash"
+        ? "Amount received must be zero or more."
+        : "Amount paid cannot exceed the sale total.");
+      return;
+    }
+    if (parsedReceived < total && !customerName.trim()) {
+      setError("Enter the customer name to record an outstanding balance.");
       return;
     }
     setBusy(true);
@@ -62,8 +69,12 @@ export default function CheckoutScreen() {
             <View style={styles.successRule} />
             <Text style={styles.eyebrow}>INVOICE</Text>
             <Text style={styles.invoiceNumber}>{completedSale.invoice_no}</Text>
-            <Text style={styles.eyebrow}>TOTAL PAID</Text>
-            <Text style={styles.successTotal}>{money(completedSale.total)}</Text>
+            <Text style={styles.eyebrow}>AMOUNT PAID</Text>
+            <Text style={styles.successTotal}>{money(Number(completedSale.total) - Number(completedSale.outstanding_amount || 0))}</Text>
+            {Number(completedSale.outstanding_amount) > 0 ? <>
+              <Text style={[styles.eyebrow, styles.dueEyebrow]}>BALANCE DUE</Text>
+              <Text style={styles.dueTotal}>{money(completedSale.outstanding_amount)}</Text>
+            </> : null}
           </Surface>
           <PrimaryButton title="View Invoice" onPress={() => router.replace({ pathname: "/(tabs)/sales", params: { saleId: completedSale.id } })} />
           <Pressable style={styles.newSaleAction} onPress={() => router.replace("/(tabs)/sale")}><Text style={styles.newSaleActionText}>Start a new sale</Text></Pressable>
@@ -92,11 +103,17 @@ export default function CheckoutScreen() {
         <Text style={styles.sectionTitle}>Payment method</Text>
         <View style={styles.methods}>{methods.map((item) => { const Icon = methodIcons[item]; return <Pressable key={item} onPress={() => setMethod(item)} style={[styles.method, method === item && styles.methodActive]}><Icon size={17} color={method === item ? colors.red : colors.muted} strokeWidth={1.9} /><Text style={styles.methodText}>{label(item)}</Text></Pressable>; })}</View>
         <Text style={styles.paymentHint}>Payment types are recorded here; digital payments are not verified by a provider.</Text>
-        {method === "cash" && <Surface style={styles.cashCard}><Text style={styles.sectionTitle}>Amount received</Text><TextInput value={receivedValue} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount received" /><Text style={styles.subtle}>Change due: <Text style={styles.change}>{money(Math.max(0, (Number(receivedValue) || 0) - total))}</Text></Text>{cashInvalid ? <Text style={styles.error}>Enter at least {money(total)} to complete this sale.</Text> : null}</Surface>}
+        <Surface style={styles.cashCard}>
+          <Text style={styles.sectionTitle}>Amount paid now</Text>
+          <TextInput value={receivedValue} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} placeholder={String(total)} accessibilityLabel="Amount paid now" />
+          {method === "cash" ? <Text style={styles.subtle}>Change due: <Text style={styles.change}>{money(Math.max(0, (Number(receivedValue) || 0) - total))}</Text></Text> : null}
+          {parsedReceived < total && Number.isFinite(parsedReceived) && parsedReceived >= 0 ? <Text style={styles.subtle}>Remaining balance: {money(total - parsedReceived)}{customerName.trim() ? ` · ${customerName.trim()}` : ""}</Text> : null}
+          {paymentInvalid ? <Text style={styles.error}>{method === "cash" ? "Amount received must be zero or more." : "Amount paid cannot exceed the sale total."}</Text> : null}
+        </Surface>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
       <View style={styles.actionBar}>
-      <PrimaryButton title={busy ? "Saving sale…" : `Complete Sale · ${money(total)}`} disabled={busy || cart.length === 0 || cashInvalid || discountInvalid} onPress={finishSale} style={styles.finish} />
+      <PrimaryButton title={busy ? "Saving sale…" : `Complete Sale · ${money(total)}`} disabled={busy || cart.length === 0 || paymentInvalid || discountInvalid} onPress={finishSale} style={styles.finish} />
       </View>
     </AppScreen>
   );
@@ -115,6 +132,8 @@ const styles = StyleSheet.create({
   successRule: { alignSelf: "stretch", marginVertical: 16, borderTopColor: colors.line, borderTopWidth: 1 },
   invoiceNumber: { marginTop: 5, marginBottom: 15, color: colors.ink, fontSize: 13, fontWeight: "800" },
   successTotal: { marginTop: 5, color: colors.red, fontSize: 27, fontWeight: "900" },
+  dueEyebrow: { marginTop: 14 },
+  dueTotal: { marginTop: 5, color: colors.amber, fontSize: 19, fontWeight: "900" },
   newSaleAction: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   newSaleActionText: { color: colors.red, fontSize: 12, fontWeight: "800" },
   backButton: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6 },

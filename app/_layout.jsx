@@ -19,7 +19,9 @@ export default function RootLayout() {
         <Stack.Screen name="reports" />
         <Stack.Screen name="expenses" />
         <Stack.Screen name="customers" />
+        <Stack.Screen name="due-payments" />
         <Stack.Screen name="staff" />
+        <Stack.Screen name="settings" />
         <Stack.Screen name="scanner" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         <Stack.Screen name="checkout" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       </Stack>

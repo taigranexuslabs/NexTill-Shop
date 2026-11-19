@@ -18,10 +18,10 @@ import {
   Store,
   UserRound,
 } from "lucide-react-native";
-import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../../src/components/Screen";
-import { useStore } from "../../src/StoreProvider";
-import { supabase } from "../../src/lib/supabase";
-import { colors } from "../../src/theme";
+import { AppScreen, PrimaryButton, ScreenHeader, Surface } from "../src/components/Screen";
+import { useStore } from "../src/StoreProvider";
+import { supabase } from "../src/lib/supabase";
+import { colors } from "../src/theme";
 
 export default function SettingsScreen() {
   const {

@@ -80,13 +80,13 @@ export default function DashboardScreen() {
             <Text style={styles.brandName}>{shop.name}</Text>
             <Text style={styles.caption}>NexTill Shop</Text>
           </View>
-          <Pressable style={styles.notification} onPress={() => router.push("/(tabs)/settings")} accessibilityLabel="Open backup and settings">
+          <Pressable style={styles.notification} onPress={() => router.push("/settings")} accessibilityLabel="Open backup and settings">
             <Bell color={colors.ink} size={18} strokeWidth={2} />
           </Pressable>
         </View>
         <Text style={styles.greeting}>Hello, {String(shop.owner_name || "there").split(" ")[0]}!</Text>
         <Text style={styles.welcomeCaption}>{dayGreeting} · {shop.name}</Text>
-        <View style={styles.statusLine}><View style={[styles.onlineDot, backupDotStyle]} /><Text style={styles.statusText}>{syncStatus === "syncing" ? "Syncing…" : syncStatus === "error" ? "Backup needs attention" : lastBackupAt ? "Last backup " + new Date(lastBackupAt).toLocaleString() : "Saved on this device"}</Text><Pressable style={styles.backupLink} onPress={() => router.push("/(tabs)/settings")}><Text style={styles.settingsLink}>Backup</Text></Pressable></View>
+        <View style={styles.statusLine}><View style={[styles.onlineDot, backupDotStyle]} /><Text style={styles.statusText}>{syncStatus === "syncing" ? "Syncing…" : syncStatus === "error" ? "Backup needs attention" : lastBackupAt ? "Last backup " + new Date(lastBackupAt).toLocaleString() : "Saved on this device"}</Text><Pressable style={styles.backupLink} onPress={() => router.push("/settings")}><Text style={styles.settingsLink}>Backup</Text></Pressable></View>
       </View>
       <View style={styles.todayLine}>
         <View><Text style={styles.todayTitle}>Today&apos;s overview</Text><Text style={styles.helper}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</Text></View>
